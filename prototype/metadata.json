@@ -1,0 +1,7 @@
+{
+  "name": "Maanak - Packaged Commodity Compliance Verification",
+  "description": "Government-grade statutory verification and compliance engine for Legal Metrology Packaged Commodities (LMPC) Rules and consumer protection enforcement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
