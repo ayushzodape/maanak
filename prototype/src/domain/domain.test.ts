@@ -102,10 +102,10 @@ test('creates rules with provenance but no invented legal logic', () => {
     title: 'MRP declaration',
     source: 'verified legal source reference',
     sourceVersion: 'source-version-1',
-    effectiveFrom: now,
+    effectiveFrom: null,
     verifiedOn: now,
     verificationStatus: 'VERIFIED',
-    logicReference: 'external-rule-implementation:rule-6-mrp',
+    logic: { kind: 'DECLARATION_PRESENCE', field: 'mrp' },
     knownGaps: [],
   });
   assert.equal(rule.verificationStatus, 'VERIFIED');

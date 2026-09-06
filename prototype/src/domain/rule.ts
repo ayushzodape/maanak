@@ -7,20 +7,19 @@ import {
 
 export type RuleVerificationStatus = 'VERIFIED' | 'UNVERIFIED' | 'BLOCKED';
 
-/**
- * A rule stores provenance and an opaque logic reference only.
- * Legal logic belongs in a separately verified ruleset; this model does not
- * invent or execute a threshold.
- */
+export type RuleLogic =
+  | { readonly kind: 'DECLARATION_PRESENCE'; readonly field: string }
+  | { readonly kind: 'BLOCKED'; readonly reason: string; readonly field?: string };
+
 export interface Rule {
   readonly id: string;
   readonly title: string;
   readonly source: string;
   readonly sourceVersion: string;
-  readonly effectiveFrom: ISODateTime;
-  readonly verifiedOn: ISODateTime;
+  readonly effectiveFrom: ISODateTime | null;
+  readonly verifiedOn: ISODateTime | null;
   readonly verificationStatus: RuleVerificationStatus;
-  readonly logicReference: string;
+  readonly logic: RuleLogic;
   readonly knownGaps: readonly string[];
 }
 
@@ -31,9 +30,20 @@ export function createRule(input: RuleInput): Rule {
   assertNonEmpty(input.title, 'title');
   assertNonEmpty(input.source, 'source');
   assertNonEmpty(input.sourceVersion, 'sourceVersion');
-  assertNonEmpty(input.logicReference, 'logicReference');
-  assertTimestamp(input.effectiveFrom, 'effectiveFrom');
-  assertTimestamp(input.verifiedOn, 'verifiedOn');
+  if (input.effectiveFrom !== null && typeof input.effectiveFrom !== 'string') {
+    throw new DomainValidationError('effectiveFrom must be an ISO date-time or null when unresolved');
+  }
+  if (input.verifiedOn !== null && typeof input.verifiedOn !== 'string') {
+    throw new DomainValidationError('verifiedOn must be an ISO date-time or null when unresolved');
+  }
+  if (input.effectiveFrom !== null) assertTimestamp(input.effectiveFrom, 'effectiveFrom');
+  if (input.verifiedOn !== null) assertTimestamp(input.verifiedOn, 'verifiedOn');
+  if (!input.logic || !['DECLARATION_PRESENCE', 'BLOCKED'].includes(input.logic.kind)) {
+    throw new DomainValidationError('unsupported rule logic');
+  }
+  if (input.logic.kind === 'DECLARATION_PRESENCE') assertNonEmpty(input.logic.field, 'logic.field');
+  if (input.logic.kind === 'BLOCKED') assertNonEmpty(input.logic.reason, 'logic.reason');
+  if (input.logic.kind === 'BLOCKED' && input.logic.field !== undefined) assertNonEmpty(input.logic.field, 'logic.field');
   if (!['VERIFIED', 'UNVERIFIED', 'BLOCKED'].includes(input.verificationStatus)) {
     throw new DomainValidationError(`unsupported rule verification status: ${String(input.verificationStatus)}`);
   }
