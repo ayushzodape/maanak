@@ -159,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-              <span>Fixture Analytics</span>
+              <span>Dashboard</span>
             </button>
 
           </div>

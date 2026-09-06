@@ -175,11 +175,8 @@ export default function App() {
 
         {currentTab === 'dashboard' && (
           <EnforcementDashboard
-            cases={cases}
-            onSelectCase={(c) => {
-              setCurrentCase(c);
-              setCurrentTab('workbench');
-            }}
+            onLoad={() => scanApi.listHistory()}
+            onOpen={handleOpenHistory}
           />
         )}
 
