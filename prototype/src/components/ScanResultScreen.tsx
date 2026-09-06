@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon, Info, Ruler, ShieldAlert } from 'lucide-react';
 import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
+import { collectEvidencePoints } from './evidence-visualization';
 
 interface ScanResultScreenProps {
   scan: Scan;
@@ -63,17 +64,17 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
           {result.evaluations.map((evaluation) => {
             const observation = evaluation.observationId ? observationsById.get(evaluation.observationId) : undefined;
             const rule = rulesById.get(evaluation.ruleId);
-            return <RequirementRow key={evaluation.id} evaluation={evaluation} observation={observation} rule={rule} scanId={scan.id} onOpenEvidence={setSelectedEvidence} />;
+            return <RequirementRow key={evaluation.id} evaluation={evaluation} observation={observation} rule={rule} onOpenEvidence={setSelectedEvidence} />;
           })}
         </div>
       </div>
 
-      {selectedEvidence && <EvidenceViewer scan={scan} imageId={selectedEvidence} onClose={() => setSelectedEvidence(null)} />}
+      {selectedEvidence && <EvidenceViewer scan={scan} result={result} imageId={selectedEvidence} onClose={() => setSelectedEvidence(null)} />}
     </section>
   );
 };
 
-const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][number]; observation?: Observation; rule?: Rule; scanId: string; onOpenEvidence: (imageId: string) => void }> = ({ evaluation, observation, rule, onOpenEvidence }) => {
+const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][number]; observation?: Observation; rule?: Rule; onOpenEvidence: (imageId: string) => void }> = ({ evaluation, observation, rule, onOpenEvidence }) => {
   const hasEvidence = Boolean(evaluation.evidence?.imageId);
   return <article className="p-4 space-y-3">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -95,12 +96,24 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   return <div className="rounded border border-slate-200 bg-slate-50 px-2.5 py-2"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">{label}</p><p className="mt-1 text-slate-700 break-words">{value}</p></div>;
 }
 
-function EvidenceViewer({ scan, imageId, onClose }: { scan: Scan; imageId: string; onClose: () => void }) {
+function EvidenceViewer({ scan, result, imageId, onClose }: { scan: Scan; result: CanonicalScanResult; imageId: string; onClose: () => void }) {
   const image = scan.images.find((candidate) => candidate.id === imageId);
+  const evidencePoints = collectEvidencePoints(result, imageId);
+  const localizedPoints = evidencePoints.filter(({ evidence }) => evidence.boundingBox);
   return <div className="fixed inset-0 z-50 bg-slate-950/75 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Source image evidence">
     <div className="bg-white rounded-lg max-w-2xl w-full overflow-hidden shadow-2xl">
       <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between"><div><h2 className="text-sm font-bold">Source image evidence</h2><p className="text-[10px] font-mono text-slate-400">{imageId}</p></div><button onClick={onClose} className="text-xs px-2 py-1 border border-slate-600 rounded">Close</button></div>
-      <div className="p-4"><img src={`/scans/${encodeURIComponent(scan.id)}/images/${encodeURIComponent(imageId)}`} alt="Original uploaded source evidence" className="max-h-[65vh] w-full object-contain bg-slate-100 rounded" /><p className="mt-2 text-[10px] text-slate-500 break-all">Storage reference: {image?.storageKey ?? 'not available'}</p></div>
+      <div className="p-4">
+        {image ? <div className="relative w-full overflow-hidden rounded bg-slate-100" style={{ aspectRatio: `${image.width} / ${image.height}` }}>
+          <img src={`/scans/${encodeURIComponent(scan.id)}/images/${encodeURIComponent(imageId)}`} alt="Original uploaded source evidence" className="absolute inset-0 h-full w-full object-contain" />
+          {localizedPoints.map(({ evaluationId, evidence }) => {
+            const box = evidence.boundingBox!;
+            return <div key={evaluationId} className="absolute border-2 border-amber-400 bg-amber-300/20 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]" style={{ left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%` }} aria-label={`Highlighted evidence region for ${evaluationId}`} />;
+          })}
+        </div> : <div className="p-6 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded">The source image is unavailable.</div>}
+        {localizedPoints.length > 0 ? <p className="mt-2 text-[10px] text-slate-600">Amber outlines mark localized evidence from the observation.</p> : <p className="mt-2 text-[10px] text-amber-700">Localized evidence unavailable: this observation has no bounding box.</p>}
+        <p className="mt-1 text-[10px] text-slate-500 break-all">Storage reference: {image?.storageKey ?? 'not available'}</p>
+      </div>
     </div>
   </div>;
 }
