@@ -10,6 +10,9 @@ export interface BoundingBox {
 export interface EvidenceReference {
   readonly imageId: string;
   readonly boundingBox?: BoundingBox;
+  readonly sourceImage?: {
+    readonly storageKey: string;
+  };
 }
 
 export class DomainValidationError extends Error {
@@ -57,6 +60,9 @@ export function assertEvidenceReference(reference: EvidenceReference | null, req
   }
 
   assertNonEmpty(reference.imageId, 'evidence.imageId');
+  if (reference.sourceImage) {
+    assertNonEmpty(reference.sourceImage.storageKey, 'evidence.sourceImage.storageKey');
+  }
   if (reference.boundingBox) {
     assertBoundingBox(reference.boundingBox);
   }
