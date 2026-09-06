@@ -127,6 +127,17 @@ export function createApp(
     res.status(200).json(scan);
   });
 
+  app.get('/scans/:id/images/:imageId', (req, res) => {
+    const scan = repository.getById(req.params.id);
+    const image = scan?.images.find((candidate) => candidate.id === req.params.imageId);
+    const bytes = image ? repository.getImageBytes(req.params.id, req.params.imageId) : undefined;
+    if (!image || !bytes) {
+      res.status(404).json(apiError('IMAGE_NOT_FOUND', 'source image was not found'));
+      return;
+    }
+    res.type(image.mimeType).send(bytes);
+  });
+
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof SyntaxError) {
       res.status(400).json(apiError('INVALID_JSON', 'request body is not valid JSON'));

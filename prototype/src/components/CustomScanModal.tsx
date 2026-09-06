@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, LoaderCircle, Upload, X } from 'lucide-react';
 import { Scan, SourceType } from '../domain';
 import { createScanApiClient } from '../services/scanApi';
+import { CURRENT_RULE_DEFINITIONS, evaluateScan } from '../evaluation';
+import { CanonicalScanResult } from '../domain';
 import {
   initialScanEntryState,
   ScanEntryState,
@@ -11,7 +13,7 @@ import {
 
 interface CustomScanModalProps {
   onClose: () => void;
-  onScanCreated?: (scan: Scan) => void;
+  onScanCreated?: (scan: Scan, result: CanonicalScanResult) => void;
 }
 
 const scanApi = createScanApiClient();
@@ -84,7 +86,12 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
       const uploaded = await scanApi.uploadSourceImage(createdScan.id, selectedFile);
       setScan(uploaded.scan);
       update({ type: 'UPLOAD_SUCCEEDED', scanId: uploaded.scan.id });
-      onScanCreated?.(uploaded.scan);
+      const { canonicalResult } = evaluateScan(
+        uploaded.scan.id,
+        uploaded.scan.observations,
+        CURRENT_RULE_DEFINITIONS,
+      );
+      onScanCreated?.(uploaded.scan, canonicalResult);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed. Please retry.';
       setFlow((current) => ({ ...current, status: 'ERROR', errorMessage: message }));

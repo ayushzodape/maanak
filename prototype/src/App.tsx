@@ -18,6 +18,8 @@ import { InspectorOverrideModal } from './components/InspectorOverrideModal';
 import { NoticeGeneratorModal } from './components/NoticeGeneratorModal';
 import { CustomScanModal } from './components/CustomScanModal';
 import { HelplineModal } from './components/HelplineModal';
+import { ScanResultScreen } from './components/ScanResultScreen';
+import { CanonicalScanResult, Scan } from './domain';
 import { INITIAL_CASES } from './data/sampleCases';
 import { PackageEvidence, DeclarationAuditItem, UserRole, ComplianceStatus } from './types';
 
@@ -34,6 +36,8 @@ export default function App() {
   const [noticeCase, setNoticeCase] = useState<PackageEvidence | null>(null);
   const [isHelplineOpen, setIsHelplineOpen] = useState<boolean>(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+  const [resultScan, setResultScan] = useState<Scan | null>(null);
+  const [canonicalResult, setCanonicalResult] = useState<CanonicalScanResult | null>(null);
 
   const officerNameMap: Record<UserRole, string> = {
     LEGAL_METROLOGY_OFFICER: "Rajesh Kumar Sharma (Inspector Grade I, LMO-4091)",
@@ -48,8 +52,11 @@ export default function App() {
   };
 
   // Add newly scanned custom case
-  const handleScanCreated = (scan: { productName: string }) => {
-    showNotification(`Source image for "${scan.productName}" uploaded. Analysis is pending.`);
+  const handleScanCreated = (scan: Scan, result: CanonicalScanResult) => {
+    setResultScan(scan);
+    setCanonicalResult(result);
+    setIsCustomScanOpen(false);
+    showNotification(`Canonical screening result ready for "${scan.productName}".`);
   };
 
   // Save inspector human-in-the-loop override
@@ -138,9 +145,13 @@ export default function App() {
 
       {/* Main App Body */}
       <main className="flex-1 pb-10">
-        {currentTab === 'home' && (
-          <HomeScreen caseCount={cases.length} onStartScan={() => setIsCustomScanOpen(true)} />
-        )}
+        {resultScan && canonicalResult ? <ScanResultScreen
+          scan={resultScan}
+          result={canonicalResult}
+          onBack={() => { setResultScan(null); setCanonicalResult(null); }}
+          onRetry={() => { setResultScan(null); setCanonicalResult(null); setIsCustomScanOpen(true); }}
+        /> : <>
+        {currentTab === 'home' && <HomeScreen caseCount={cases.length} onStartScan={() => setIsCustomScanOpen(true)} />}
         {currentTab === 'workbench' && (
           <InspectionWorkbench
             currentCase={currentCase}
@@ -176,6 +187,7 @@ export default function App() {
         {currentTab === 'rules' && (
           <StatutoryCompendium />
         )}
+        </>}
       </main>
 
       {/* Institutional Legal Footer */}
