@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon,
 import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
+import { createScreeningReport, renderHumanReadableReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
 
 interface ScanResultScreenProps {
   scan: Scan;
@@ -26,9 +27,20 @@ function resultBadge(result: CanonicalScanResult['overallResult']) {
 
 export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result, onBack, onRetry }) => {
   const [selectedEvidence, setSelectedEvidence] = useState<string | null>(null);
+  const [exportAcknowledged, setExportAcknowledged] = useState(false);
   const style = RESULT_STYLES[result.overallResult];
   const observationsById = useMemo(() => new Map(scan.observations.map((observation) => [observation.id, observation])), [scan.observations]);
   const rulesById = useMemo(() => new Map(CURRENT_RULE_DEFINITIONS.map((rule) => [rule.id, rule])), []);
+  const report = useMemo(() => createScreeningReport(scan, result, CURRENT_RULE_DEFINITIONS), [scan, result]);
+
+  const download = (filename: string, content: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([content], { type }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <section className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
@@ -66,6 +78,19 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
             const rule = rulesById.get(evaluation.ruleId);
             return <RequirementRow key={evaluation.id} evaluation={evaluation} observation={observation} rule={rule} onOpenEvidence={setSelectedEvidence} />;
           })}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-300 bg-slate-50 p-4">
+        <p className="text-xs font-bold text-slate-900">Before export</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{SCREENING_DISCLAIMER}</p>
+        <label className="mt-3 flex items-start gap-2 text-[11px] text-slate-700">
+          <input type="checkbox" checked={exportAcknowledged} onChange={(event) => setExportAcknowledged(event.target.checked)} className="mt-0.5 accent-blue-700" />
+          <span>I understand this is a screening output, not an official inspection, notice, certification, or certified measurement report.</span>
+        </label>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button disabled={!exportAcknowledged} onClick={() => download(`${scan.id}_screening.json`, serializeCanonicalJson(report), 'application/json')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download canonical JSON</button>
+          <button disabled={!exportAcknowledged} onClick={() => download(`${scan.id}_screening.txt`, renderHumanReadableReport(report), 'text/plain;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download screening report</button>
         </div>
       </div>
 
