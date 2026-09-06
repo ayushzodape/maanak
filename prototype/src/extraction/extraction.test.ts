@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createEvidenceImage } from '../domain';
 import { ExtractionError } from './extraction-adapter';
+import { GeminiConfigurationError, GeminiExtractionAdapter } from './gemini-extraction-adapter';
 import { MockLocalExtractionAdapter } from './mock-local-extraction-adapter';
 
 const now = '2026-09-06T10:00:00.000Z';
@@ -84,5 +85,115 @@ test('rejects invalid local fixture data instead of returning an invented observ
       status: 'OBSERVED', observedAt: now,
     }]).extract(image),
     (error: unknown) => error instanceof ExtractionError && error.message.includes('invalid'),
+  );
+});
+
+test('requires a Gemini API key without exposing configuration details', () => {
+  assert.throws(
+    () => new GeminiExtractionAdapter({ apiKey: ' ', loadImageBytes: () => new Uint8Array([1]) }),
+    (error: unknown) => error instanceof GeminiConfigurationError &&
+      error.message === 'Gemini extraction provider is not configured' &&
+      !error.message.includes('key'),
+  );
+});
+
+test('converts valid Gemini structured output into evidence-backed observations', async () => {
+  let request: unknown;
+  const adapter = new GeminiExtractionAdapter({
+    apiKey: 'test-key',
+    loadImageBytes: () => new Uint8Array([1, 2, 3]),
+    client: {
+      generateContent: async (params) => {
+        request = params;
+        return {
+          text: JSON.stringify({
+            observations: [{
+              field: 'mrp', value: '₹120', unit: 'INR', confidence: 0.96, status: 'OBSERVED',
+              boundingBox: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
+            }],
+          }),
+        };
+      },
+    },
+  });
+
+  const [observation] = await adapter.extract(image);
+  assert.equal(observation.field, 'mrp');
+  assert.equal(observation.value, '₹120');
+  assert.equal(observation.status, 'OBSERVED');
+  assert.equal(observation.extractionMethod, 'GEMINI_VISION');
+  assert.deepEqual(observation.evidence?.boundingBox, { x: 0.1, y: 0.2, width: 0.3, height: 0.1 });
+  assert.equal((request as { model: string }).model, 'gemini-2.5-flash');
+  assert.equal((request as { config: { responseMimeType: string } }).config.responseMimeType, 'application/json');
+  assert.match(JSON.stringify(request), /Do not infer legal compliance/);
+  assert.match(JSON.stringify(request), /Do not return PASS or FAIL/);
+});
+
+test('rejects malformed Gemini output instead of fabricating observations', async () => {
+  const adapter = new GeminiExtractionAdapter({
+    apiKey: 'test-key',
+    loadImageBytes: () => new Uint8Array([1]),
+    client: { generateContent: async () => ({ text: '{not-json' }) },
+  });
+
+  await assert.rejects(
+    () => adapter.extract(image),
+    (error: unknown) => error instanceof ExtractionError && error.message.includes('malformed JSON'),
+  );
+});
+
+test('rejects an empty Gemini response and missing source bytes', async () => {
+  const emptyResponseAdapter = new GeminiExtractionAdapter({
+    apiKey: 'test-key',
+    loadImageBytes: () => new Uint8Array([1]),
+    client: { generateContent: async () => ({ text: '  ' }) },
+  });
+  await assert.rejects(
+    () => emptyResponseAdapter.extract(image),
+    (error: unknown) => error instanceof ExtractionError && error.message.includes('empty response'),
+  );
+
+  const missingBytesAdapter = new GeminiExtractionAdapter({
+    apiKey: 'test-key',
+    loadImageBytes: () => undefined,
+    client: { generateContent: async () => ({ text: '{}' }) },
+  });
+  await assert.rejects(
+    () => missingBytesAdapter.extract(image),
+    (error: unknown) => error instanceof ExtractionError && error.message.includes('source image bytes'),
+  );
+});
+
+test('converts provider failures into sanitized extraction errors', async () => {
+  const adapter = new GeminiExtractionAdapter({
+    apiKey: 'test-key',
+    loadImageBytes: () => new Uint8Array([1]),
+    client: {
+      generateContent: async () => { throw { status: 503, message: 'secret provider details' }; },
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.extract(image),
+    (error: unknown) => error instanceof ExtractionError &&
+      error.message === 'Gemini extraction provider is unavailable' &&
+      !error.message.includes('secret'),
+  );
+});
+
+test('never accepts a provider compliance result as an observation result', async () => {
+  const adapter = new GeminiExtractionAdapter({
+    apiKey: 'test-key',
+    loadImageBytes: () => new Uint8Array([1]),
+    client: {
+      generateContent: async () => ({
+        text: JSON.stringify({ result: 'PASS', observations: [] }),
+      }),
+    },
+  });
+
+  await assert.rejects(
+    () => adapter.extract(image),
+    (error: unknown) => error instanceof ExtractionError && error.message.includes('observation schema'),
   );
 });
