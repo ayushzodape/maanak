@@ -1,7 +1,7 @@
 # Maanak Implementation Status
 
 **Status date:** 2026-09-06  
-**Repository state:** Documentation guardrails established; application behavior unchanged.
+**Repository state:** Core scan, extraction, deterministic evaluation, reporting, persistence, history, dashboard, and minimal session boundaries are implemented in `prototype/`. Real-provider and legal-coverage gaps remain explicit.
 
 ## Canonical product identity
 
@@ -57,21 +57,24 @@ must be `NOT_MEASURABLE`.
 
 ## Current implementation snapshot
 
-The current `prototype/` is a frontend-only React/Tailwind case-review UI.
-It has no backend, persistence, real extraction service, deterministic
-application rule engine, authentication, or source-image repository.
+The current `prototype/` is a React/Tailwind client with a small Express API,
+file-backed scan repository, deterministic evaluation boundary, and minimal
+server-enforced session boundary. Live extraction remains unavailable until an
+approved provider is configured.
 
 ### Existing prototype behavior
 
-- Seed cases are loaded from `prototype/src/data/sampleCases.ts`.
-- State is held in `prototype/src/App.tsx` and is lost on refresh.
-- The custom scan modal creates a result from manually entered fields and
-  hard-coded heuristics.
-- `PackageArtwork.tsx` renders synthetic package artwork with overlay boxes.
-- The repository and dashboard read local in-memory cases; some dashboard
-  metrics are hard-coded.
-- JSON download and browser print are available; canonical PDF/DOCX report
-  generation is not present.
+- Legacy workbench, fixture repository, and fixture analytics remain backed by
+  `prototype/src/data/sampleCases.ts`; they are visibly marked as synthetic
+  and are not the live scan/history path.
+- Live scans create a server record, persist the uploaded source image, run the
+  configured extraction adapter, persist observations, evaluate verified rules,
+  and persist the canonical result before display.
+- Scan history and dashboard read completed entries from `GET /scans`; each
+  entry includes its persisted canonical result.
+- JSON and human-readable screening exports are generated from one canonical
+  result. Official notices, browser-print reporting, and certified claims are
+  not supported.
 
 These behaviors are prototype fixtures and UI scaffolding, not completed
 Digital Compliance Screening functionality.

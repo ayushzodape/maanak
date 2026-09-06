@@ -37,7 +37,7 @@ export default function App() {
   const [canonicalResult, setCanonicalResult] = useState<CanonicalScanResult | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
-  const scanApi = createScanApiClient();
+  const scanApi = createScanApiClient('', () => setAuthenticatedUser(null));
 
   useEffect(() => {
     scanApi.getSession()
@@ -227,6 +227,7 @@ export default function App() {
         <CustomScanModal
           onClose={() => setIsCustomScanOpen(false)}
           onScanCreated={handleScanCreated}
+          onUnauthorized={() => setAuthenticatedUser(null)}
         />
       )}
 

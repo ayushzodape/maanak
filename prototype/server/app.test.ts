@@ -213,6 +213,30 @@ test('rejects unauthenticated access to scans, history, results, and source imag
   }
 });
 
+test('logout invalidates the server session', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  try {
+    const loginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'test-inspector', password: 'test-password' }),
+    });
+    const cookie = loginResponse.headers.get('set-cookie')?.split(';', 1)[0];
+    assert.ok(cookie);
+    const logoutResponse = await fetch(`${baseUrl}/auth/logout`, { method: 'POST', headers: { cookie } });
+    assert.equal(logoutResponse.status, 204);
+    const protectedResponse = await fetch(`${baseUrl}/scans`, { headers: { cookie } });
+    assert.equal(protectedResponse.status, 401);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
 test('persists a canonical result and exposes it through filtered history', async () => {
   await withServer(async (baseUrl) => {
     const createResponse = await fetch(`${baseUrl}/scans`, {

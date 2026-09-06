@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, LoaderCircle, Upload, X } from 'lucide-react';
 import { CanonicalScanResult, Scan, SourceType } from '../domain';
 import { createScanApiClient } from '../services/scanApi';
@@ -13,9 +13,9 @@ import {
 interface CustomScanModalProps {
   onClose: () => void;
   onScanCreated?: (scan: Scan, result: CanonicalScanResult) => void;
+  onUnauthorized?: () => void;
 }
 
-const scanApi = createScanApiClient();
 const PROCESSING_COPY: Record<ScanEntryState['status'], string> = {
   IDLE: 'Choose a source and upload a product image to begin.',
   CAPTURING: 'Choose a source image from your device.',
@@ -30,12 +30,13 @@ const PROCESSING_COPY: Record<ScanEntryState['status'], string> = {
   NOT_MEASURABLE: 'This check cannot be measured from the available evidence.',
 };
 
-export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onScanCreated }) => {
+export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onScanCreated, onUnauthorized }) => {
   const [flow, setFlow] = useState<ScanEntryState>(initialScanEntryState);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scanApi = useMemo(() => createScanApiClient('', onUnauthorized), [onUnauthorized]);
 
   const update = (event: Parameters<typeof transitionScanEntry>[1]) => {
     setFlow((current) => transitionScanEntry(current, event));

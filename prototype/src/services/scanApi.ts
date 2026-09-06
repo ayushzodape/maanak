@@ -38,36 +38,38 @@ export class ScanApiError extends Error {
   }
 }
 
-export function createScanApiClient(baseUrl = ''): ScanApiClient {
+export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): ScanApiClient {
   return {
     async login(username, password) {
       const response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      const payload = await parseResponse<{ user: AuthenticatedUser }>(response);
+      const payload = await parseResponse<{ user: AuthenticatedUser }>(response, onUnauthorized);
       return payload.user;
     },
 
     async getSession() {
-      const response = await fetch(`${baseUrl}/auth/session`);
-      const payload = await parseResponse<{ user: AuthenticatedUser }>(response);
+      const response = await fetch(`${baseUrl}/auth/session`, { credentials: 'include' });
+      const payload = await parseResponse<{ user: AuthenticatedUser }>(response, onUnauthorized);
       return payload.user;
     },
 
     async logout() {
-      const response = await fetch(`${baseUrl}/auth/logout`, { method: 'POST' });
-      if (!response.ok) await parseResponse<unknown>(response);
+      const response = await fetch(`${baseUrl}/auth/logout`, { method: 'POST', credentials: 'include' });
+      if (!response.ok) await parseResponse<unknown>(response, onUnauthorized);
     },
 
     async createScan(input) {
       const response = await fetch(`${baseUrl}/scans`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
       });
-      return parseResponse<Scan>(response);
+      return parseResponse<Scan>(response, onUnauthorized);
     },
 
     async uploadSourceImage(scanId, image, capturedAt) {
@@ -75,44 +77,47 @@ export function createScanApiClient(baseUrl = ''): ScanApiClient {
       if (capturedAt) headers['x-captured-at'] = capturedAt;
       const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/images`, {
         method: 'POST',
+        credentials: 'include',
         headers,
         body: image,
       });
-      return parseResponse<{ image: EvidenceImage; scan: Scan }>(response);
+      return parseResponse<{ image: EvidenceImage; scan: Scan }>(response, onUnauthorized);
     },
 
     async getScan(scanId) {
-      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}`);
-      return parseResponse<Scan>(response);
+      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}`, { credentials: 'include' });
+      return parseResponse<Scan>(response, onUnauthorized);
     },
 
     async saveResult(scanId, result) {
       const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(result),
       });
-      return parseResponse<{ scan: Scan; result: CanonicalScanResult }>(response);
+      return parseResponse<{ scan: Scan; result: CanonicalScanResult }>(response, onUnauthorized);
     },
 
     async getResult(scanId) {
-      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`);
-      return parseResponse<CanonicalScanResult>(response);
+      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`, { credentials: 'include' });
+      return parseResponse<CanonicalScanResult>(response, onUnauthorized);
     },
 
     async listHistory(filters = {}) {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
-      const response = await fetch(`${baseUrl}/scans${params.toString() ? `?${params}` : ''}`);
-      const payload = await parseResponse<{ items: ScanHistoryEntry[] }>(response);
+      const response = await fetch(`${baseUrl}/scans${params.toString() ? `?${params}` : ''}`, { credentials: 'include' });
+      const payload = await parseResponse<{ items: ScanHistoryEntry[] }>(response, onUnauthorized);
       return payload.items;
     },
   };
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+async function parseResponse<T>(response: Response, onUnauthorized?: () => void): Promise<T> {
   const payload = await response.json() as T | ScanApiErrorPayload;
   if (!response.ok) {
+    if (response.status === 401) onUnauthorized?.();
     const error = payload as ScanApiErrorPayload;
     throw new ScanApiError(
       response.status,
