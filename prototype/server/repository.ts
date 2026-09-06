@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
-import { EvidenceImage, Scan } from '../src/domain';
+import { createScan, EvidenceImage, Observation, Scan } from '../src/domain';
 
 export interface ScanRepository {
   create(scan: Scan): Scan;
   getById(id: string): Scan | undefined;
   save(scan: Scan): Scan;
   saveImage(scanId: string, image: EvidenceImage, bytes: Buffer): Scan;
+  saveObservations(scanId: string, observations: readonly Observation[]): Scan;
+  markError(scanId: string, message: string): Scan;
   getImageBytes(scanId: string, imageId: string): Buffer | undefined;
 }
 
@@ -46,7 +48,7 @@ export class InMemoryScanRepository implements ScanRepository {
       throw new Error(`image already exists: ${image.id}`);
     }
     this.imageBytes.set(this.imageKey(scanId, image.id), Buffer.from(bytes));
-    return this.save({
+    return this.save(createScan({
       ...scan,
       images: [...scan.images, image],
       processing: {
@@ -59,7 +61,40 @@ export class InMemoryScanRepository implements ScanRepository {
         ...scan.timestamps,
         updatedAt: image.createdAt,
       },
-    });
+    }));
+  }
+
+  saveObservations(scanId: string, observations: readonly Observation[]): Scan {
+    const scan = this.getById(scanId);
+    if (!scan) {
+      throw new Error(`scan does not exist: ${scanId}`);
+    }
+    return this.save(createScan({
+      ...scan,
+      observations: [...observations],
+      processing: {
+        ...scan.processing,
+        stage: 'EXTRACTING',
+        lifecycle: 'PROCESSING',
+        errorMessage: undefined,
+      },
+      timestamps: {
+        ...scan.timestamps,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+  }
+
+  markError(scanId: string, message: string): Scan {
+    const scan = this.getById(scanId);
+    if (!scan) {
+      throw new Error(`scan does not exist: ${scanId}`);
+    }
+    return this.save(createScan({
+      ...scan,
+      processing: { stage: 'ERROR', lifecycle: 'ERROR', errorMessage: message },
+      timestamps: { ...scan.timestamps, updatedAt: new Date().toISOString() },
+    }));
   }
 
   getImageBytes(scanId: string, imageId: string): Buffer | undefined {

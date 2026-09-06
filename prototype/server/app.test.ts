@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createApp } from './app';
+import { MockLocalExtractionAdapter } from '../src/extraction';
 
-async function withServer<T>(callback: (baseUrl: string) => Promise<T>): Promise<T> {
-  const server = createApp().listen(0);
+async function withServer<T>(callback: (baseUrl: string) => Promise<T>, app = createApp()): Promise<T> {
+  const server = app.listen(0);
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') {
@@ -26,6 +27,7 @@ test('creates and retrieves a scan with validated metadata', async () => {
         productName: 'Example commodity',
         sourceType: 'PHYSICAL_PHOTO',
         ruleVersion: 'pending-verified-ruleset',
+        mode: 'DEMO_FIXTURE',
       }),
     });
     assert.equal(createResponse.status, 201);
@@ -42,11 +44,12 @@ test('creates and retrieves a scan with validated metadata', async () => {
 });
 
 test('stores source image bytes and returns a structured evidence image', async () => {
+  const app = createApp(undefined, new MockLocalExtractionAdapter([]));
   await withServer(async (baseUrl) => {
     const createResponse = await fetch(`${baseUrl}/scans`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ productName: 'Image test', sourceType: 'ECOMMERCE_LISTING', ruleVersion: 'pending-verified-ruleset' }),
+      body: JSON.stringify({ productName: 'Image test', sourceType: 'ECOMMERCE_LISTING', ruleVersion: 'pending-verified-ruleset', mode: 'DEMO_FIXTURE' }),
     });
     const scan = await createResponse.json() as { id: string };
     const bytes = new Uint8Array([1, 2, 3, 4]);
@@ -56,12 +59,13 @@ test('stores source image bytes and returns a structured evidence image', async 
       body: bytes,
     });
     assert.equal(uploadResponse.status, 201);
-    const payload = await uploadResponse.json() as { image: { id: string; byteSize: number; sha256: string }; scan: { images: unknown[] } };
+    const payload = await uploadResponse.json() as { image: { id: string; byteSize: number; sha256: string }; scan: { images: unknown[]; observations: unknown[] } };
     assert.match(payload.image.id, /^img_/);
     assert.equal(payload.image.byteSize, 4);
     assert.match(payload.image.sha256, /^[a-f0-9]{64}$/);
     assert.equal(payload.scan.images.length, 1);
-  });
+    assert.equal(payload.scan.observations.length, 0);
+  }, app);
 });
 
 test('rejects invalid scan metadata and invalid image requests', async () => {
@@ -69,7 +73,7 @@ test('rejects invalid scan metadata and invalid image requests', async () => {
     const invalidScanResponse = await fetch(`${baseUrl}/scans`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ productName: 'Missing source', ruleVersion: 'pending-verified-ruleset' }),
+      body: JSON.stringify({ productName: 'Missing source', ruleVersion: 'pending-verified-ruleset', mode: 'DEMO_FIXTURE' }),
     });
     assert.equal(invalidScanResponse.status, 400);
     assert.equal((await invalidScanResponse.json() as { error: { code: string } }).error.code, 'INVALID_REQUEST');
@@ -95,7 +99,7 @@ test('rejects unsupported image content type for an existing scan', async () => 
     const createResponse = await fetch(`${baseUrl}/scans`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ productName: 'Type test', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'pending-verified-ruleset' }),
+      body: JSON.stringify({ productName: 'Type test', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'pending-verified-ruleset', mode: 'DEMO_FIXTURE' }),
     });
     const scan = await createResponse.json() as { id: string };
     const response = await fetch(`${baseUrl}/scans/${scan.id}/images`, {
@@ -106,4 +110,68 @@ test('rejects unsupported image content type for an existing scan', async () => 
     assert.equal(response.status, 415);
     assert.equal((await response.json() as { error: { code: string } }).error.code, 'UNSUPPORTED_IMAGE_TYPE');
   });
+});
+
+test('persists adapter observations linked to the uploaded source image', async () => {
+  const app = createApp(undefined, new MockLocalExtractionAdapter([{
+    id: 'obs-mrp', field: 'mrp', value: 120, unit: 'INR', confidence: 0.96,
+    status: 'OBSERVED', boundingBox: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
+    observedAt: '2026-09-06T10:00:00.000Z',
+  }]));
+  await withServer(async (baseUrl) => {
+    const createResponse = await fetch(`${baseUrl}/scans`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ productName: 'Extraction test', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'pending-verified-ruleset', mode: 'DEMO_FIXTURE' }),
+    });
+    const scan = await createResponse.json() as { id: string };
+    const uploadResponse = await fetch(`${baseUrl}/scans/${scan.id}/images`, {
+      method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: new Uint8Array([9, 8, 7]),
+    });
+    assert.equal(uploadResponse.status, 201);
+    const result = await uploadResponse.json() as { scan: { images: { id: string }[]; observations: { evidence: { imageId: string; sourceImage: { storageKey: string } } | null; confidence: number }[] } };
+    assert.equal(result.scan.observations.length, 1);
+    assert.equal(result.scan.observations[0].evidence?.imageId, result.scan.images[0].id);
+    assert.match(result.scan.observations[0].evidence?.sourceImage.storageKey || '', new RegExp(`^scans/${scan.id}/images/`));
+    assert.equal(result.scan.observations[0].confidence, 0.96);
+  }, app);
+});
+
+test('live extraction failure is explicit and leaves the uploaded scan errored', async () => {
+  await withServer(async (baseUrl) => {
+    const createResponse = await fetch(`${baseUrl}/scans`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ productName: 'Live extraction test', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'pending-verified-ruleset' }),
+    });
+    const scan = await createResponse.json() as { id: string };
+    const uploadResponse = await fetch(`${baseUrl}/scans/${scan.id}/images`, {
+      method: 'POST', headers: { 'content-type': 'image/png' }, body: new Uint8Array([1, 2, 3]),
+    });
+    assert.equal(uploadResponse.status, 502);
+    assert.equal((await uploadResponse.json() as { error: { code: string } }).error.code, 'EXTRACTION_FAILED');
+    const getResponse = await fetch(`${baseUrl}/scans/${scan.id}`);
+    const persisted = await getResponse.json() as { images: unknown[]; observations: unknown[]; processing: { lifecycle: string; stage: string } };
+    assert.equal(persisted.images.length, 1);
+    assert.equal(persisted.observations.length, 0);
+    assert.deepEqual(persisted.processing, { stage: 'ERROR', lifecycle: 'ERROR', errorMessage: 'live extraction provider is not configured' });
+  });
+});
+
+test('does not allow a demo adapter to serve a LIVE scan', async () => {
+  const app = createApp(undefined, new MockLocalExtractionAdapter([{
+    id: 'demo-observation', field: 'mrp', value: 120, confidence: 0.99,
+    status: 'OBSERVED', observedAt: '2026-09-06T10:00:00.000Z',
+  }]));
+  await withServer(async (baseUrl) => {
+    const createResponse = await fetch(`${baseUrl}/scans`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ productName: 'Live isolation test', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'pending-verified-ruleset', mode: 'LIVE' }),
+    });
+    const scan = await createResponse.json() as { id: string };
+    const uploadResponse = await fetch(`${baseUrl}/scans/${scan.id}/images`, {
+      method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: new Uint8Array([1, 2, 3]),
+    });
+    assert.equal(uploadResponse.status, 502);
+    const persisted = await (await fetch(`${baseUrl}/scans/${scan.id}`)).json() as { observations: unknown[] };
+    assert.equal(persisted.observations.length, 0);
+  }, app);
 });

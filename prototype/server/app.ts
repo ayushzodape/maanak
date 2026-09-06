@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
-import { createEvidenceImage, createScan, DomainValidationError, Scan, SourceType } from '../src/domain';
+import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType } from '../src/domain';
+import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
 import { InMemoryScanRepository, ScanRepository, sha256 } from './repository';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -10,6 +11,7 @@ interface CreateScanBody {
   productName?: unknown;
   sourceType?: unknown;
   ruleVersion?: unknown;
+  mode?: unknown;
 }
 
 export interface ApiErrorBody {
@@ -19,7 +21,11 @@ export interface ApiErrorBody {
   };
 }
 
-export function createApp(repository: ScanRepository = new InMemoryScanRepository()): express.Express {
+export function createApp(
+  repository: ScanRepository = new InMemoryScanRepository(),
+  demoExtractionAdapter: ExtractionAdapter = new UnavailableExtractionAdapter(),
+  liveExtractionAdapter: ExtractionAdapter = new UnavailableExtractionAdapter(),
+): express.Express {
   const app = express();
   app.use(express.json({ limit: '256kb' }));
   app.use(express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: MAX_IMAGE_BYTES }));
@@ -30,11 +36,13 @@ export function createApp(repository: ScanRepository = new InMemoryScanRepositor
       const productName = requiredString(body?.productName, 'productName');
       const sourceType = requiredSourceType(body?.sourceType);
       const ruleVersion = requiredString(body?.ruleVersion, 'ruleVersion');
+      const mode = requiredScanMode(body?.mode);
       const timestamp = new Date().toISOString();
       const scan: Scan = createScan({
         id: `scan_${randomUUID()}`,
         productName,
         sourceType,
+        mode,
         images: [],
         observations: [],
         evaluations: [],
@@ -48,7 +56,7 @@ export function createApp(repository: ScanRepository = new InMemoryScanRepositor
     }
   });
 
-  app.post('/scans/:id/images', (req, res, next) => {
+  app.post('/scans/:id/images', async (req, res, next) => {
     try {
       const scan = repository.getById(req.params.id);
       if (!scan) {
@@ -80,9 +88,32 @@ export function createApp(repository: ScanRepository = new InMemoryScanRepositor
         capturedAt: req.header('x-captured-at') || timestamp,
         createdAt: timestamp,
       });
-      const updatedScan = repository.saveImage(scan.id, image, req.body);
-      res.status(201).json({ image, scan: updatedScan });
+      const uploadedScan = repository.saveImage(scan.id, image, req.body);
+      repository.save(createScan({
+        ...uploadedScan,
+        processing: { ...uploadedScan.processing, stage: 'ANALYZING', lifecycle: 'PROCESSING' },
+        timestamps: { ...uploadedScan.timestamps, updatedAt: new Date().toISOString() },
+      }));
+      const activeExtractionAdapter = uploadedScan.mode === 'DEMO_FIXTURE'
+        ? demoExtractionAdapter
+        : liveExtractionAdapter;
+      const observations = await activeExtractionAdapter.extract(image);
+      const extractedScan = repository.saveObservations(scan.id, observations);
+      res.status(201).json({ image, scan: extractedScan });
     } catch (error) {
+      if (error instanceof ExtractionError) {
+        try {
+          repository.markError(req.params.id, error.message);
+        } catch (persistError) {
+          next(persistError);
+          return;
+        }
+        res.status(502).json({
+          ...apiError('EXTRACTION_FAILED', error.message),
+          scanId: req.params.id,
+        });
+        return;
+      }
       next(error);
     }
   });
@@ -126,6 +157,14 @@ function requiredString(value: unknown, fieldName: string): string {
 function requiredSourceType(value: unknown): SourceType {
   if (value !== 'PHYSICAL_PHOTO' && value !== 'ECOMMERCE_LISTING') {
     throw new DomainValidationError('sourceType must be PHYSICAL_PHOTO or ECOMMERCE_LISTING');
+  }
+  return value;
+}
+
+function requiredScanMode(value: unknown): ScanMode {
+  if (value === undefined) return 'LIVE';
+  if (value !== 'LIVE' && value !== 'DEMO_FIXTURE') {
+    throw new DomainValidationError('mode must be LIVE or DEMO_FIXTURE');
   }
   return value;
 }

@@ -1,7 +1,7 @@
 import { CanonicalScanResult, EvidenceImage, Scan, SourceType } from '../domain';
 
 export interface ScanApiClient {
-  createScan(input: { productName: string; sourceType: SourceType; ruleVersion: string }): Promise<Scan>;
+  createScan(input: { productName: string; sourceType: SourceType; ruleVersion: string; mode?: 'LIVE' | 'DEMO_FIXTURE' }): Promise<Scan>;
   uploadSourceImage(scanId: string, image: Blob, capturedAt?: string): Promise<{ image: EvidenceImage; scan: Scan }>;
   getScan(scanId: string): Promise<Scan>;
 }

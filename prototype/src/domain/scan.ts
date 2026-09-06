@@ -11,6 +11,9 @@ import { Observation } from './observation';
 export const SOURCE_TYPES = ['PHYSICAL_PHOTO', 'ECOMMERCE_LISTING'] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
+export const SCAN_MODES = ['LIVE', 'DEMO_FIXTURE'] as const;
+export type ScanMode = (typeof SCAN_MODES)[number];
+
 export const SCAN_PROCESSING_STAGES = [
   'IDLE',
   'CAPTURING',
@@ -44,6 +47,7 @@ export interface Scan {
   readonly id: string;
   readonly productName: string;
   readonly sourceType: SourceType;
+  readonly mode: ScanMode;
   readonly images: readonly EvidenceImage[];
   readonly observations: readonly Observation[];
   readonly evaluations: readonly Evaluation[];
@@ -60,6 +64,9 @@ export function createScan(input: ScanInput): Scan {
   assertNonEmpty(input.ruleVersion, 'ruleVersion');
   if (!SOURCE_TYPES.includes(input.sourceType)) {
     throw new DomainValidationError(`unsupported source type: ${String(input.sourceType)}`);
+  }
+  if (!SCAN_MODES.includes(input.mode)) {
+    throw new DomainValidationError(`unsupported scan mode: ${String(input.mode)}`);
   }
   if (!SCAN_PROCESSING_STAGES.includes(input.processing.stage)) {
     throw new DomainValidationError(`unsupported processing stage: ${String(input.processing.stage)}`);
