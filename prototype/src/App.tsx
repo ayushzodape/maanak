@@ -131,6 +131,8 @@ export default function App() {
           if (tab === 'notice') {
             setNoticeCase(currentCase);
           } else {
+            setResultScan(null);
+            setCanonicalResult(null);
             setCurrentTab(tab);
           }
         }}

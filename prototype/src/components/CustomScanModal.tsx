@@ -1,9 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, LoaderCircle, Upload, X } from 'lucide-react';
-import { Scan, SourceType } from '../domain';
+import { CanonicalScanResult, Scan, SourceType } from '../domain';
 import { createScanApiClient } from '../services/scanApi';
-import { CURRENT_RULE_DEFINITIONS, evaluateScan } from '../evaluation';
-import { CanonicalScanResult } from '../domain';
+import { CURRENT_RULE_DEFINITIONS, evaluateScan, RULESET_VERSION } from '../evaluation';
 import {
   initialScanEntryState,
   ScanEntryState,
@@ -17,18 +16,16 @@ interface CustomScanModalProps {
 }
 
 const scanApi = createScanApiClient();
-const PENDING_RULE_VERSION = 'PENDING_RULE_EVALUATION';
-
 const PROCESSING_COPY: Record<ScanEntryState['status'], string> = {
   IDLE: 'Choose a source and upload a product image to begin.',
   CAPTURING: 'Choose a source image from your device.',
   UPLOADING: 'Uploading the original image as evidence…',
-  ANALYZING: 'Image uploaded. Analysis service is not connected yet.',
+  ANALYZING: 'Image uploaded. Analysis is in progress…',
   EXTRACTING: 'Extracting visible declarations…',
   EVALUATING: 'Evaluating declarations against verified rules…',
   GENERATING_REPORT: 'Preparing the screening report…',
   COMPLETE: 'Screening complete.',
-  ERROR: 'The scan could not be uploaded.',
+  ERROR: 'The scan could not be completed.',
   UNCERTAIN: 'The evidence is insufficient for a reliable determination.',
   NOT_MEASURABLE: 'This check cannot be measured from the available evidence.',
 };
@@ -80,7 +77,7 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
       const createdScan = scan || await scanApi.createScan({
         productName: flow.productName.trim(),
         sourceType: flow.sourceType,
-        ruleVersion: PENDING_RULE_VERSION,
+        ruleVersion: RULESET_VERSION,
       });
       setScan(createdScan);
       const uploaded = await scanApi.uploadSourceImage(createdScan.id, selectedFile);

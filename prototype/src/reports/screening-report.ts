@@ -12,6 +12,8 @@ export interface ScreeningReportDocument {
     readonly sourceType: Scan['sourceType'];
     readonly mode: Scan['mode'];
     readonly ruleVersion: string;
+    readonly processing: Scan['processing'];
+    readonly timestamps: Scan['timestamps'];
     readonly createdAt: string;
     readonly completedAt?: string;
   };
@@ -35,6 +37,22 @@ export function createScreeningReport(
   const ruleMetadata = rules.map(({ id, title, source, sourceVersion, effectiveFrom, verifiedOn, verificationStatus, knownGaps }) => ({
     id, title, source, sourceVersion, effectiveFrom, verifiedOn, verificationStatus, knownGaps,
   }));
+  const rulesById = new Map(ruleMetadata.map((rule) => [rule.id, rule]));
+  const observationsById = new Map(scan.observations.map((observation) => [observation.id, observation]));
+  const imagesById = new Map(scan.images.map((image) => [image.id, image]));
+  for (const evaluation of canonicalResult.evaluations) {
+    const rule = rulesById.get(evaluation.ruleId);
+    if (!rule) throw new Error(`canonical result references unknown rule ${evaluation.ruleId}`);
+    if (rule.sourceVersion !== evaluation.ruleVersion) {
+      throw new Error(`evaluation ${evaluation.id} does not match rule ${evaluation.ruleId} version`);
+    }
+    if (evaluation.observationId !== null && !observationsById.has(evaluation.observationId)) {
+      throw new Error(`evaluation ${evaluation.id} references unknown observation ${evaluation.observationId}`);
+    }
+    if (evaluation.evidence && !imagesById.has(evaluation.evidence.imageId)) {
+      throw new Error(`evaluation ${evaluation.id} references unknown evidence image ${evaluation.evidence.imageId}`);
+    }
+  }
   const limitations = [
     'This screening is limited to the observations and source images retained on this scan.',
     'Observation confidence is extraction confidence, not legal certainty.',
@@ -52,6 +70,8 @@ export function createScreeningReport(
       sourceType: scan.sourceType,
       mode: scan.mode,
       ruleVersion: scan.ruleVersion,
+      processing: scan.processing,
+      timestamps: scan.timestamps,
       createdAt: scan.timestamps.createdAt,
       ...(scan.timestamps.completedAt ? { completedAt: scan.timestamps.completedAt } : {}),
     },
@@ -83,19 +103,26 @@ export function renderHumanReadableReport(report: ScreeningReportDocument): stri
   ];
 
   for (const evaluation of report.canonicalResult.evaluations) {
+    const rule = report.ruleMetadata.find((candidate) => candidate.id === evaluation.ruleId);
+    const sourceImage = evaluation.evidence ? report.evidenceImages.find((image) => image.id === evaluation.evidence!.imageId) : undefined;
     lines.push(
       `${evaluation.ruleId}: ${evaluation.result}`,
+      `  Rule source: ${rule?.source ?? 'not available'}`,
+      `  Rule verification: ${rule?.verificationStatus ?? 'not available'}${rule?.verifiedOn ? ` (${rule.verifiedOn})` : ''}`,
+      `  Rule source version: ${rule?.sourceVersion ?? evaluation.ruleVersion}`,
       `  Reason: ${evaluation.reason}`,
       `  Observation: ${evaluation.observationId ?? 'none'}`,
       `  Confidence: ${evaluation.observationConfidence === null ? 'not available' : `${Math.round(evaluation.observationConfidence * 100)}%`}`,
       `  Evidence image: ${evaluation.evidence?.imageId ?? 'none'}`,
+      `  Evidence source reference: ${sourceImage?.storageKey ?? evaluation.evidence?.sourceImage?.storageKey ?? 'not available'}`,
       `  Evidence bounding box: ${evaluation.evidence?.boundingBox ? JSON.stringify(evaluation.evidence.boundingBox) : 'not available'}`,
     );
   }
 
   lines.push('', 'OBSERVATIONS', '------------');
   for (const observation of report.observations) {
-    lines.push(`${observation.id}: ${observation.field} = ${observation.value ?? 'no value'} [${observation.status}], confidence ${Math.round(observation.confidence * 100)}%, evidence ${observation.evidence?.imageId ?? 'none'}`);
+    const sourceImage = observation.evidence ? report.evidenceImages.find((image) => image.id === observation.evidence!.imageId) : undefined;
+    lines.push(`${observation.id}: ${observation.field} = ${observation.value ?? 'no value'} [${observation.status}], confidence ${Math.round(observation.confidence * 100)}%, evidence ${observation.evidence?.imageId ?? 'none'} (${sourceImage?.storageKey ?? observation.evidence?.sourceImage?.storageKey ?? 'not available'})`);
   }
 
   lines.push('', 'LIMITATIONS', '-----------', ...report.limitations.map((limitation) => `- ${limitation}`), '', 'DISCLAIMER', '----------', report.disclaimer);

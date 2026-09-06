@@ -28,18 +28,39 @@ function resultBadge(result: CanonicalScanResult['overallResult']) {
 export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result, onBack, onRetry }) => {
   const [selectedEvidence, setSelectedEvidence] = useState<string | null>(null);
   const [exportAcknowledged, setExportAcknowledged] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const style = RESULT_STYLES[result.overallResult];
   const observationsById = useMemo(() => new Map(scan.observations.map((observation) => [observation.id, observation])), [scan.observations]);
   const rulesById = useMemo(() => new Map(CURRENT_RULE_DEFINITIONS.map((rule) => [rule.id, rule])), []);
-  const report = useMemo(() => createScreeningReport(scan, result, CURRENT_RULE_DEFINITIONS), [scan, result]);
+  const reportBuild = useMemo(() => {
+    try {
+      return { report: createScreeningReport(scan, result, CURRENT_RULE_DEFINITIONS), error: null };
+    } catch (error) {
+      return { report: null, error: error instanceof Error ? error.message : 'The screening report could not be prepared.' };
+    }
+  }, [scan, result]);
+  const report = reportBuild.report;
 
   const download = (filename: string, content: string, type: string) => {
-    const url = URL.createObjectURL(new Blob([content], { type }));
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    try {
+      const url = URL.createObjectURL(new Blob([content], { type }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      return 'The report download could not be started. Please retry.';
+    }
+    return null;
+  };
+
+  const exportReport = (filename: string, content: string, type: string) => {
+    setExportError(null);
+    const error = download(filename, content, type);
+    if (error) setExportError(error);
   };
 
   return (
@@ -89,9 +110,12 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
           <span>I understand this is a screening output, not an official inspection, notice, certification, or certified measurement report.</span>
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button disabled={!exportAcknowledged} onClick={() => download(`${scan.id}_screening.json`, serializeCanonicalJson(report), 'application/json')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download canonical JSON</button>
-          <button disabled={!exportAcknowledged} onClick={() => download(`${scan.id}_screening.txt`, renderHumanReadableReport(report), 'text/plain;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download screening report</button>
+          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.json`, serializeCanonicalJson(report), 'application/json')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download canonical JSON</button>
+          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.txt`, renderHumanReadableReport(report), 'text/plain;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download screening report</button>
         </div>
+        {reportBuild.error && <p className="mt-2 text-xs text-rose-700">Report unavailable: {reportBuild.error}</p>}
+        {exportError && <p className="mt-2 text-xs text-rose-700">{exportError}</p>}
+        {exportAcknowledged && !reportBuild.error && <p className="mt-2 text-[10px] text-slate-500">Exports contain this canonical result and the evidence retained for this scan.</p>}
       </div>
 
       {selectedEvidence && <EvidenceViewer scan={scan} result={result} imageId={selectedEvidence} onClose={() => setSelectedEvidence(null)} />}
