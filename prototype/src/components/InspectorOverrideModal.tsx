@@ -2,8 +2,8 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Human-in-the-Loop Inspector Adjudication & Override Modal
- * Enables statutory officers to review, adjudicate, or overturn machine OCR findings
+ * Maanak - Demo Fixture Reviewer Action Modal
+ * Applies a reviewer action to a preloaded fixture record only.
  */
 
 import React, { useState } from 'react';
@@ -32,21 +32,15 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
   if (!item) return null;
 
   const [selectedStatus, setSelectedStatus] = useState<ComplianceStatus>(item.status);
-  const [selectedReason, setSelectedReason] = useState<string>(
-    "Physical inspection with 10x optical magnifier confirms compliance"
-  );
+  const [selectedReason, setSelectedReason] = useState<string>('Reviewer recorded a fixture-only finding');
   const [remarks, setRemarks] = useState<string>("");
-  const [pin, setPin] = useState<string>("4091");
+  const [pin, setPin] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const reasonOptions = [
-    "Physical inspection with 10x optical magnifier confirms clear embossed stamping",
-    "Verified against physical FoSCoS / FSSAI database license register",
-    "Physical Vernier Caliper measurement confirms character height within legal tolerance",
-    "Packer registration under Rule 27 verified in National Metrology Database",
-    "Statutory Exemption under Rule 26(a) confirmed after certified laboratory weighment",
-    "E-Commerce marketplace primary digital buy-box re-verified manually",
-    "Technical contravention upheld: Notice of Contravention recommended"
+    'Reviewer recorded a fixture-only finding from the displayed example',
+    'Reviewer marked the displayed example for additional review',
+    'Reviewer recorded that the displayed evidence is insufficient',
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -56,7 +50,7 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
       return;
     }
     if (!remarks.trim()) {
-      setErrorMsg("Statutory audit remarks are required for traceability.");
+      setErrorMsg("Fixture review remarks are required for traceability.");
       return;
     }
 
@@ -73,7 +67,7 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
           <div className="flex items-center gap-2">
             <FileEdit className="w-5 h-5 text-amber-400" />
             <div>
-              <h3 className="text-sm font-bold tracking-wide">Statutory Officer Adjudication</h3>
+              <h3 className="text-sm font-bold tracking-wide">Fixture Reviewer Action</h3>
               <p className="text-[11px] text-slate-300 font-mono">
                 Legal Metrology Act, 2009 • Human-in-the-Loop Override
               </p>
@@ -123,7 +117,7 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div>
                   <span className="block text-xs">Verify Compliant</span>
-                  <span className="text-[10px] font-normal text-slate-500">Meets statutory threshold</span>
+                  <span className="text-[10px] font-normal text-slate-500">Fixture status only</span>
                 </div>
               </button>
 
@@ -139,7 +133,7 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
                 <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                 <div>
                   <span className="block text-xs">Uphold Contravention</span>
-                  <span className="text-[10px] font-normal text-slate-500">Issue Form VIII Notice</span>
+                  <span className="text-[10px] font-normal text-slate-500">Fixture reviewer action only</span>
                 </div>
               </button>
 
@@ -198,7 +192,7 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
           {/* Officer Remarks Field */}
           <div>
             <label className="block font-bold text-slate-900 mb-1">
-              Statutory Notes & Examination Findings: <span className="text-rose-500">*</span>
+              Fixture Review Notes: <span className="text-rose-500">*</span>
             </label>
             <textarea
               rows={3}
@@ -207,7 +201,7 @@ export const InspectorOverrideModal: React.FC<InspectorOverrideModalProps> = ({
                 setRemarks(e.target.value);
                 setErrorMsg("");
               }}
-              placeholder="Record physical inspection observations, optical measurements, or statutory rationale..."
+              placeholder="Record notes about the displayed fixture example..."
               className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             />
           </div>

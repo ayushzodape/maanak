@@ -2,7 +2,8 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Statutory Rules & Legal Metrology Reference Data
+ * Maanak - Legacy demo fixture citation data
+ * This module is not a production legal ruleset. Do not use it for live results.
  * Grounded in Legal Metrology Act, 2009 and LMPC Rules, 2011 (as amended)
  */
 

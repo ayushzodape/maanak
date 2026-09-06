@@ -2,8 +2,8 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Realistic Packaged Commodity Case Records
- * Grounded in actual Indian Market Inspection scenarios
+ * Maanak - Demo Fixture Case Records
+ * Synthetic examples for visual testing only; never live evidence.
  */
 
 import { PackageEvidence } from '../types';

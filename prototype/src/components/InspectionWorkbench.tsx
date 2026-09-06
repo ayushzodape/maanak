@@ -2,8 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Flagship Statutory Inspection Workbench
- * Interactive dual-pane compliance verification engine with explainability & human-in-the-loop validation
+ * Maanak - Legacy Demo Fixture Workbench
  */
 
 import React, { useState } from 'react';
@@ -12,7 +11,6 @@ import {
   ShieldAlert, 
   AlertTriangle, 
   Scale, 
-  FileText, 
   Sliders, 
   Eye, 
   Maximize2, 
@@ -33,7 +31,6 @@ interface InspectionWorkbenchProps {
   onSelectCase: (caseItem: PackageEvidence) => void;
   onOpenCustomScan: () => void;
   onOpenOverride: (item: DeclarationAuditItem) => void;
-  onOpenNotice: (evidence: PackageEvidence) => void;
 }
 
 export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
@@ -42,7 +39,6 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
   onSelectCase,
   onOpenCustomScan,
   onOpenOverride,
-  onOpenNotice
 }) => {
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState<boolean>(true);
@@ -107,6 +103,9 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-4">
       
       {/* CASE SELECTOR RIBBON */}
+      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+        <strong>DEMO FIXTURE WORKBENCH:</strong> package artwork, OCR, measurements, hashes, and case outcomes below are synthetic examples, not uploaded source evidence or official inspection findings.
+      </div>
       <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
@@ -181,7 +180,7 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
                 <Eye className="w-3.5 h-3.5" />
               </button>
 
-              {/* Toggle Rule 7 Caliper Tool */}
+              {/* Fixture-only visual control; never a legal measurement. */}
               <button
                 onClick={() => setIsCaliperActive(!isCaliperActive)}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${
@@ -189,15 +188,15 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
                     ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' 
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium'
                 }`}
-                title="Toggle Rule 7 Optical Micrometer Caliper"
+                title="Toggle fixture measurement illustration"
               >
                 <Sliders className="w-3.5 h-3.5" />
-                <span>Rule 7 Caliper</span>
+                <span>Fixture visualizer</span>
               </button>
             </div>
           </div>
 
-          {/* Realistic Package Artwork Container */}
+          {/* Synthetic package artwork container — explicitly fixture-only. */}
           <PackageArtwork
             svgId={currentCase.packageSvgId}
             boundingBoxes={currentCase.boundingBoxes}
@@ -231,12 +230,12 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
             <div className="flex justify-between items-center text-slate-700">
               <span className="font-medium">Rule 7 Table-I Threshold:</span>
               <span className="font-mono font-semibold text-blue-900">
-                Min {requiredHeightMm.toFixed(1)} mm ({currentCase.rule7Measurement?.statutoryTier || 'Standard'})
+                Fixture value only — no certified threshold
               </span>
             </div>
             <div className="pt-1 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
               <span>SHA-256: {currentCase.sha256Digest.substring(0, 20)}...</span>
-              <span>ISO/IEC 17025 Calibrated</span>
+              <span>Fixture data — not calibrated</span>
             </div>
           </div>
 
@@ -266,9 +265,9 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
                 )}
                 <div>
                   <h2 className="text-sm font-bold tracking-tight">
-                    {currentCase.overallStatus === 'COMPLIANT' && 'VERIFIED STATUTORY COMPLIANT'}
-                    {currentCase.overallStatus === 'NON_COMPLIANT' && 'PRIMA FACIE STATUTORY CONTRAVENTION'}
-                    {currentCase.overallStatus === 'NEEDS_REVIEW' && 'INSPECTOR SCRUTINY REQUIRED'}
+                    {currentCase.overallStatus === 'COMPLIANT' && 'FIXTURE MARKED COMPLIANT'}
+                    {currentCase.overallStatus === 'NON_COMPLIANT' && 'FIXTURE FLAGGED FOR REVIEW'}
+                    {currentCase.overallStatus === 'NEEDS_REVIEW' && 'FIXTURE REVIEW REQUIRED'}
                     {currentCase.overallStatus === 'STATUTORILY_EXEMPT' && 'STATUTORILY EXEMPT UNDER RULE 26(a)'}
                   </h2>
                   <span className="text-[11px] font-mono opacity-80 block">
@@ -277,18 +276,6 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
                 </div>
               </div>
 
-              {/* Action pill */}
-              <div className="flex items-center gap-1.5">
-                {currentCase.legalNoticeEligible && (
-                  <button
-                    onClick={() => onOpenNotice(currentCase)}
-                    className="flex items-center gap-1 bg-rose-700 hover:bg-rose-800 text-white px-3 py-1.5 rounded text-xs font-bold transition-all shadow-sm"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Issue Form VIII Notice</span>
-                  </button>
-                )}
-              </div>
             </div>
 
             <p className="text-xs leading-relaxed mt-1 opacity-90">
@@ -299,7 +286,7 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
           {/* EXPLAINABILITY TRACEABILITY PIPELINE BAR */}
           <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-              Statutory Evidence & Explainability Chain:
+              Fixture Evidence & Explainability Chain:
             </span>
             <div className="flex items-center justify-between text-[11px] text-slate-700 font-medium overflow-x-auto gap-1">
               <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded shrink-0">
@@ -309,7 +296,7 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-                <span>2. Statutory Rule</span>
+                <span>2. Fixture Rule Label</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded shrink-0">
@@ -319,7 +306,7 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                <span>4. Inspector Override</span>
+                <span>4. Fixture Reviewer Action</span>
               </div>
             </div>
           </div>
@@ -330,7 +317,7 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
             {/* Mini Filter Header */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Mandatory Declarations Audit (Rule 6 & Rule 7):
+                Fixture Declaration Examples:
               </span>
 
               <div className="flex items-center gap-1 text-[11px]">
@@ -476,18 +463,9 @@ export const InspectionWorkbench: React.FC<InspectionWorkbenchProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded hover:bg-slate-100 font-medium text-slate-700 transition-colors"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Export Dossier (JSON)</span>
+                <span>Export fixture JSON</span>
               </button>
 
-              {currentCase.legalNoticeEligible && (
-                <button
-                  onClick={() => onOpenNotice(currentCase)}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded font-bold transition-all shadow-sm"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Form VIII Notice</span>
-                </button>
-              )}
             </div>
           </div>
 

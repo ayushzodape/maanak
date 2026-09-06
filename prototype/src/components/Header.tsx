@@ -2,20 +2,18 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Institutional Government Header & Navigation
- * Ministry of Consumer Affairs, Food & Public Distribution - Legal Metrology Division
+ * Maanak - Digital Compliance Screening Header & Navigation
  */
 
 import React from 'react';
-import { Home, ShieldCheck, Scale, Database, BarChart3, BookOpen, FileText, UserCheck, AlertCircle } from 'lucide-react';
+import { Home, ShieldCheck, Scale, Database, BarChart3, UserCheck } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface HeaderProps {
-  currentTab: 'home' | 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice';
-  onSelectTab: (tab: 'home' | 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice') => void;
+  currentTab: 'home' | 'workbench' | 'repository' | 'dashboard';
+  onSelectTab: (tab: 'home' | 'workbench' | 'repository' | 'dashboard') => void;
   activeRole: UserRole;
   onChangeRole: (role: UserRole) => void;
-  onOpenHelpline: () => void;
   caseCount: number;
 }
 
@@ -24,7 +22,6 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
   activeRole,
   onChangeRole,
-  onOpenHelpline,
   caseCount
 }) => {
   return (
@@ -48,14 +45,14 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="leading-tight">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-semibold text-slate-300 tracking-wider uppercase">
-                भारत सरकार • Government of India
+                MAANAK • DIGITAL COMPLIANCE SCREENING
               </span>
               <span className="text-[10px] bg-blue-900/80 text-blue-300 border border-blue-700/50 px-1.5 py-0.2 rounded font-mono">
-                LMPC ACT 2009
+                SCREENING MODE
               </span>
             </div>
             <div className="text-xs text-slate-400 font-medium">
-              उपभोक्ता मामले विभाग • Department of Consumer Affairs | विधिक मापविज्ञान प्रभाग
+              Evidence-first packaged commodity review
             </div>
           </div>
         </div>
@@ -73,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
             <span className="text-[10px] text-slate-400 block -mt-1 font-mono">
-              Packaged Commodity Compliance Verification
+                Preliminary screening • evidence + rules
             </span>
           </div>
 
@@ -86,29 +83,20 @@ export const Header: React.FC<HeaderProps> = ({
               className="bg-transparent text-xs text-slate-200 font-medium focus:outline-none cursor-pointer pr-1"
             >
               <option value="LEGAL_METROLOGY_OFFICER" className="bg-slate-900 text-slate-200">
-                Senior LM Officer (Inspector)
+                Enforcement reviewer
               </option>
               <option value="ZONAL_INSPECTOR" className="bg-slate-900 text-slate-200">
-                Zonal Circle Inspector
+                Supervising reviewer
               </option>
               <option value="CONTROLLER_OF_LEGAL_METROLOGY" className="bg-slate-900 text-slate-200">
-                Controller of Legal Metrology
+                Compliance administrator
               </option>
               <option value="ENTERPRISE_COMPLIANCE_AUDITOR" className="bg-slate-900 text-slate-200">
-                Packer Self-Auditor (Enterprise)
+                Demo fixture reviewer
               </option>
             </select>
           </div>
 
-          {/* National Consumer Helpline 1915 */}
-          <button
-            onClick={onOpenHelpline}
-            className="flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded text-xs font-medium transition-colors"
-            title="National Consumer Helpline Integration (Toll-Free 1915)"
-          >
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">NCH 1915 Sync</span>
-          </button>
         </div>
       </div>
 
@@ -134,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Inspection Workbench</span>
+              <span>Fixture Workbench</span>
             </button>
 
             <button
@@ -146,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Database className="w-4 h-4" />
-              <span>Statutory Repository</span>
+              <span>Fixture Repository</span>
               <span className="bg-slate-700 text-slate-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
                 {caseCount}
               </span>
@@ -161,38 +149,15 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-              <span>Enforcement Intelligence</span>
+              <span>Fixture Analytics</span>
             </button>
 
-            <button
-              onClick={() => onSelectTab('rules')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                currentTab === 'rules'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Statutory Compendium & Rule 7 Tool</span>
-            </button>
-
-            <button
-              onClick={() => onSelectTab('notice')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                currentTab === 'notice'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>Form VIII Legal Notice</span>
-            </button>
           </div>
 
           {/* Current Statutory Amendment Badge */}
           <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-400 font-mono">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>GSR 128(E) E-Commerce Enforced</span>
+            <span>Live scan path separate from demo fixtures</span>
           </div>
         </nav>
       </div>

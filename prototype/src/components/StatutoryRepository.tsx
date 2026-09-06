@@ -2,24 +2,22 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Statutory Repository & Historical Inspection Ledger
- * Searchable, filterable repository of commodity inspections across circles
+ * Maanak - Demo Fixture Repository
+ * Searchable, filterable preloaded examples for visual testing only
  */
 
 import React, { useState } from 'react';
-import { Search, Filter, Download, ExternalLink, ShieldCheck, AlertTriangle, ShieldAlert, FileText, X } from 'lucide-react';
+import { Search, Filter, Download, ExternalLink, ShieldCheck, AlertTriangle, ShieldAlert, X } from 'lucide-react';
 import { PackageEvidence, ComplianceStatus } from '../types';
 
 interface StatutoryRepositoryProps {
   cases: PackageEvidence[];
   onSelectCaseForWorkbench: (caseItem: PackageEvidence) => void;
-  onOpenNotice: (caseItem: PackageEvidence) => void;
 }
 
 export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
   cases,
   onSelectCaseForWorkbench,
-  onOpenNotice
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -73,7 +71,7 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
   };
 
   const handleExportCSV = () => {
-    const headers = ["Case ID", "Product", "Brand", "Category", "Status", "Net Qty", "Circle", "Inspector", "Timestamp", "SHA256"];
+    const headers = ["Fixture ID", "Product", "Brand", "Category", "Status", "Net Qty", "Review Group", "Reviewer Role", "Timestamp", "Fixture Digest"];
     const rows = filteredCases.map(c => [
       c.caseId,
       `"${c.productName.replace(/"/g, '""')}"`,
@@ -91,7 +89,7 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `maanak_inspections_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `maanak_fixture_records_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -153,7 +151,7 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
             className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded text-xs font-semibold transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
+            <span>Export fixture CSV</span>
           </button>
         </div>
 
@@ -169,8 +167,8 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
                 <th className="p-3">Commodity & Brand</th>
                 <th className="p-3 w-28">Category</th>
                 <th className="p-3 w-28">Net Quantity</th>
-                <th className="p-3 w-40">Inspection Circle</th>
-                <th className="p-3 w-36 text-center">Statutory Status</th>
+                <th className="p-3 w-40">Review Group</th>
+                <th className="p-3 w-36 text-center">Fixture Status</th>
                 <th className="p-3 w-36 text-right">Actions</th>
               </tr>
             </thead>
@@ -220,15 +218,6 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
                       >
                         <ExternalLink className="w-4 h-4" />
                       </button>
-                      {c.legalNoticeEligible && (
-                        <button
-                          onClick={() => onOpenNotice(c)}
-                          className="p-1 text-rose-700 hover:bg-rose-50 rounded"
-                          title="View Form VIII Notice"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -297,7 +286,7 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
               {/* Status & Verdict */}
               <div className="p-3 rounded border border-slate-200">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-slate-900">Overall Statutory Finding:</span>
+                  <span className="font-bold text-slate-900">Overall Fixture Finding:</span>
                   {getStatusBadge(activeDrawerCase.overallStatus)}
                 </div>
                 <p className="text-[11px] text-slate-700 leading-relaxed bg-white p-2 rounded border border-slate-100">
@@ -347,18 +336,6 @@ export const StatutoryRepository: React.FC<StatutoryRepositoryProps> = ({
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Workbench
               </button>
-              {activeDrawerCase.legalNoticeEligible && (
-                <button
-                  onClick={() => {
-                    onOpenNotice(activeDrawerCase);
-                    setActiveDrawerCase(null);
-                  }}
-                  className="bg-rose-700 hover:bg-rose-800 text-white font-bold py-2 px-3 rounded text-xs transition-colors flex items-center gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  Form VIII Notice
-                </button>
-              )}
             </div>
 
           </div>

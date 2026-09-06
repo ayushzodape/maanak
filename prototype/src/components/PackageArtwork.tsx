@@ -51,6 +51,9 @@ export const PackageArtwork: React.FC<PackageArtworkProps> = ({
 
   return (
     <div className="relative w-full h-full min-h-[480px] flex items-center justify-center p-3 select-none overflow-hidden bg-slate-900/5 rounded-lg border border-slate-200">
+      {!customImageUrl && <div className="absolute top-2 left-2 z-10 rounded bg-amber-100/95 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-900 border border-amber-300">
+        Illustrative fixture artwork — not source evidence
+      </div>}
       {/* Background Grid Pattern for Optical Alignment */}
       <div 
         className="absolute inset-0 opacity-15 pointer-events-none"
@@ -217,9 +220,9 @@ export const PackageArtwork: React.FC<PackageArtworkProps> = ({
               </div>
               <p className="text-[9px] text-slate-600 font-mono">Unit Price: ₹ 29.97 / ml</p>
               
-              {/* GSR 128(E) Violation Note */}
+              {/* Fixture-only e-commerce note */}
               <div className="mt-2 p-1.5 bg-rose-50 border border-rose-200 rounded text-[9px] text-rose-800">
-                <span className="font-bold block">⚠️ GSR 128(E) Contravention:</span>
+              <span className="font-bold block">⚠️ Fixture e-commerce finding (source pending):</span>
                 <span>Country of Origin missing on primary digital buy-box!</span>
               </div>
             </div>
@@ -299,14 +302,14 @@ export const PackageArtwork: React.FC<PackageArtworkProps> = ({
               <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-700">
                 <span className="text-[9px] font-bold text-amber-400 tracking-wider uppercase flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  Rule 7 Optical Caliper
+                  Fixture measurement illustration
                 </span>
                 <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${
                   caliperHeightMm >= requiredHeightMm 
                     ? 'bg-emerald-600 text-white' 
                     : 'bg-rose-600 text-white'
                 }`}>
-                  {caliperHeightMm >= requiredHeightMm ? 'PASS' : `FAIL (-${(requiredHeightMm - caliperHeightMm).toFixed(1)}mm)`}
+                  {caliperHeightMm >= requiredHeightMm ? 'ILLUSTRATION' : 'ILLUSTRATION'}
                 </span>
               </div>
 

@@ -102,28 +102,3 @@ export interface PackageEvidence {
   channel: 'OFFLINE_RETAIL' | 'E_COMMERCE_PORTAL' | 'MANUFACTURING_PREMISES';
   retailerName?: string;
 }
-
-export interface EnforcementNotice {
-  noticeNumber: string;
-  caseId: string;
-  dateIssued: string;
-  issuingOfficer: string;
-  officerDesignation: string;
-  circleOffice: string;
-  manufacturerName: string;
-  manufacturerAddress: string;
-  retailerPremises: string;
-  commodityName: string;
-  lotBatchNumber: string;
-  mrpDeclared: string;
-  contraventions: {
-    ruleBreached: string;
-    findingDescription: string;
-    punishableUnder: string;
-    penaltyScale: string;
-  }[];
-  showCauseDays: number; // standard 15 days
-  compoundingFeePotential: number;
-  qrVerificationUrl: string;
-  digitalSealHash: string;
-}

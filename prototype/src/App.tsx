@@ -2,9 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - National Packaged Commodity Statutory Compliance Platform
- * Department of Consumer Affairs, Ministry of Consumer Affairs, Food & Public Distribution
- * Legal Metrology Division • Legal Metrology Act, 2009 & LMPC Rules, 2011
+ * Maanak - Digital Compliance Screening
  */
 
 import React, { useState } from 'react';
@@ -13,11 +11,8 @@ import { HomeScreen } from './components/HomeScreen';
 import { InspectionWorkbench } from './components/InspectionWorkbench';
 import { StatutoryRepository } from './components/StatutoryRepository';
 import { EnforcementDashboard } from './components/EnforcementDashboard';
-import { StatutoryCompendium } from './components/StatutoryCompendium';
 import { InspectorOverrideModal } from './components/InspectorOverrideModal';
-import { NoticeGeneratorModal } from './components/NoticeGeneratorModal';
 import { CustomScanModal } from './components/CustomScanModal';
-import { HelplineModal } from './components/HelplineModal';
 import { ScanResultScreen } from './components/ScanResultScreen';
 import { CanonicalScanResult, Scan } from './domain';
 import { INITIAL_CASES } from './data/sampleCases';
@@ -27,23 +22,21 @@ export default function App() {
   // Master state
   const [cases, setCases] = useState<PackageEvidence[]>(INITIAL_CASES);
   const [currentCase, setCurrentCase] = useState<PackageEvidence>(INITIAL_CASES[0]);
-  const [currentTab, setCurrentTab] = useState<'home' | 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'workbench' | 'repository' | 'dashboard'>('home');
   const [activeRole, setActiveRole] = useState<UserRole>('LEGAL_METROLOGY_OFFICER');
 
   // Modal triggers
   const [isCustomScanOpen, setIsCustomScanOpen] = useState<boolean>(false);
   const [overrideItem, setOverrideItem] = useState<DeclarationAuditItem | null>(null);
-  const [noticeCase, setNoticeCase] = useState<PackageEvidence | null>(null);
-  const [isHelplineOpen, setIsHelplineOpen] = useState<boolean>(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [resultScan, setResultScan] = useState<Scan | null>(null);
   const [canonicalResult, setCanonicalResult] = useState<CanonicalScanResult | null>(null);
 
   const officerNameMap: Record<UserRole, string> = {
-    LEGAL_METROLOGY_OFFICER: "Rajesh Kumar Sharma (Inspector Grade I, LMO-4091)",
-    ZONAL_INSPECTOR: "Smt. Priya V. Deshmukh (Zonal Circle Inspector, LMO-2104)",
-    CONTROLLER_OF_LEGAL_METROLOGY: "Dr. K. S. Murthy, IAS (Controller of Legal Metrology)",
-    ENTERPRISE_COMPLIANCE_AUDITOR: "Amitabh Sen (Lead Regulatory Compliance Auditor)"
+    LEGAL_METROLOGY_OFFICER: 'Enforcement reviewer',
+    ZONAL_INSPECTOR: 'Supervising reviewer',
+    CONTROLLER_OF_LEGAL_METROLOGY: 'Compliance administrator',
+    ENTERPRISE_COMPLIANCE_AUDITOR: 'Demo fixture reviewer',
   };
 
   const showNotification = (msg: string) => {
@@ -59,7 +52,7 @@ export default function App() {
     showNotification(`Canonical screening result ready for "${scan.productName}".`);
   };
 
-  // Save inspector human-in-the-loop override
+  // Save a reviewer action against a demo fixture only.
   const handleSaveOverride = (
     itemId: string,
     newStatus: ComplianceStatus,
@@ -104,13 +97,13 @@ export default function App() {
       legalNoticeEligible: newOverallStatus === 'NON_COMPLIANT',
       statutoryPenaltyEstimate: newOverallStatus === 'NON_COMPLIANT' ? 25000 : 0,
       summaryVerdict: newOverallStatus === 'COMPLIANT'
-        ? `Adjudicated compliant by ${officerNameMap[activeRole]}. All statutory mandates satisfied.`
+        ? `Fixture record marked compliant by ${officerNameMap[activeRole]}.`
         : currentCase.summaryVerdict
     };
 
     setCurrentCase(updatedCase);
     setCases(prev => prev.map(c => c.caseId === updatedCase.caseId ? updatedCase : c));
-    showNotification(`Statutory declaration updated to ${newStatus} by Inspecting Officer.`);
+    showNotification(`Demo fixture record updated to ${newStatus}.`);
   };
 
   return (
@@ -124,24 +117,19 @@ export default function App() {
         </div>
       )}
 
-      {/* Institutional Indian Government Header */}
+      {/* Maanak screening header */}
       <Header
         currentTab={currentTab}
         onSelectTab={(tab) => {
-          if (tab === 'notice') {
-            setNoticeCase(currentCase);
-          } else {
-            setResultScan(null);
-            setCanonicalResult(null);
-            setCurrentTab(tab);
-          }
+          setResultScan(null);
+          setCanonicalResult(null);
+          setCurrentTab(tab);
         }}
         activeRole={activeRole}
         onChangeRole={(role) => {
           setActiveRole(role);
           showNotification(`Active role switched to: ${officerNameMap[role]}`);
         }}
-        onOpenHelpline={() => setIsHelplineOpen(true)}
         caseCount={cases.length}
       />
 
@@ -153,6 +141,7 @@ export default function App() {
           onBack={() => { setResultScan(null); setCanonicalResult(null); }}
           onRetry={() => { setResultScan(null); setCanonicalResult(null); setIsCustomScanOpen(true); }}
         /> : <>
+        {currentTab !== 'home' && <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4"><div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900"><strong>DEMO FIXTURE MODE:</strong> this legacy surface uses preloaded synthetic case data. It is not live scan evidence or live enforcement data.</div></div>}
         {currentTab === 'home' && <HomeScreen caseCount={cases.length} onStartScan={() => setIsCustomScanOpen(true)} />}
         {currentTab === 'workbench' && (
           <InspectionWorkbench
@@ -161,7 +150,6 @@ export default function App() {
             onSelectCase={(c) => setCurrentCase(c)}
             onOpenCustomScan={() => setIsCustomScanOpen(true)}
             onOpenOverride={(item) => setOverrideItem(item)}
-            onOpenNotice={(evidence) => setNoticeCase(evidence)}
           />
         )}
 
@@ -172,7 +160,6 @@ export default function App() {
               setCurrentCase(c);
               setCurrentTab('workbench');
             }}
-            onOpenNotice={(c) => setNoticeCase(c)}
           />
         )}
 
@@ -186,9 +173,6 @@ export default function App() {
           />
         )}
 
-        {currentTab === 'rules' && (
-          <StatutoryCompendium />
-        )}
         </>}
       </main>
 
@@ -198,24 +182,18 @@ export default function App() {
           <div className="space-y-1 text-center md:text-left">
             <div className="font-bold text-slate-200 flex items-center justify-center md:justify-start gap-2">
               <span className="font-serif text-sm">मानक • MAANAK</span>
-              <span>• National Legal Metrology Packaged Commodities Portal</span>
+              <span>• Digital Compliance Screening</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Department of Consumer Affairs, Ministry of Consumer Affairs, Food and Public Distribution, Government of India.
+              Evidence-first screening support for packaged commodities. Not an official inspection system.
             </p>
             <p className="text-[10px] text-slate-500 font-mono">
-              Statutory Basis: Legal Metrology Act, 2009 (Act 1 of 2010) • LMPC Rules, 2011 • GSR 128(E) 2024
+              Source images remain the evidence of record • Results are preliminary screening outputs
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
-            <button onClick={() => setCurrentTab('rules')} className="hover:text-white">
-              Rule 7 Table-I Standards
-            </button>
-            <button onClick={() => setIsHelplineOpen(true)} className="hover:text-white">
-              National Consumer Helpline 1915
-            </button>
-            <span className="text-slate-600 font-mono">ISO/IEC 17025 Calibrated</span>
+            <span className="text-slate-500 font-mono">No certified measurement claim</span>
           </div>
         </div>
       </footer>
@@ -234,22 +212,6 @@ export default function App() {
           officerName={officerNameMap[activeRole]}
           onClose={() => setOverrideItem(null)}
           onSaveOverride={handleSaveOverride}
-        />
-      )}
-
-      {noticeCase && (
-        <NoticeGeneratorModal
-          evidence={noticeCase}
-          onClose={() => setNoticeCase(null)}
-        />
-      )}
-
-      {isHelplineOpen && (
-        <HelplineModal
-          onClose={() => setIsHelplineOpen(false)}
-          onLinkCase={(complaintId) => {
-            showNotification(`Linked complaint ${complaintId} to current statutory inspection case.`);
-          }}
         />
       )}
 

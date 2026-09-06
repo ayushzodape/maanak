@@ -2,8 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Maanak - Enforcement Intelligence & Compliance Analytics Dashboard
- * Statutory performance metrics, contravention patterns, and circle inspection rates
+ * Maanak - Demo Fixture Analytics Dashboard
  */
 
 import React from 'react';
@@ -40,7 +39,7 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
       description: "Missing '(incl. of all taxes)' suffix or Unit Sale Price"
     },
     {
-      rule: "Rule 7 Table-I - Numeral Height Deficit",
+      rule: "Fixture character-height finding (not evaluated)",
       count: 3,
       percentage: 30,
       description: "Net quantity numeral height below statutory threshold"
@@ -52,7 +51,7 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
       description: "Omission of mandatory grievance officer email"
     },
     {
-      rule: "GSR 128(E) - E-Commerce Country of Origin",
+      rule: "E-commerce country-of-origin finding (source pending)",
       count: 2,
       percentage: 20,
       description: "Country of origin missing on marketplace digital buy-box"
@@ -83,16 +82,16 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
           <div className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-blue-700" />
             <h1 className="text-lg font-bold text-slate-900">
-              National Enforcement Intelligence & Statutory Surveillance
+              Demo fixture analytics
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Real-time compliance trends across all inspecting circles under Legal Metrology Act, 2009
+            Preloaded synthetic trends for visual demonstration only — not live enforcement statistics.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded border border-emerald-200">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>Surveillance Cycle Active (Q3 2026)</span>
+        <div className="flex items-center gap-2 text-xs font-semibold bg-amber-50 text-amber-800 px-3 py-1.5 rounded border border-amber-200">
+          <CheckCircle2 className="w-4 h-4 text-amber-600" />
+          <span>DEMO FIXTURE DATA</span>
         </div>
       </div>
 
@@ -102,12 +101,12 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
         {/* Total Inspected */}
         <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Total Commodities Audited
+            Total Fixture Records
           </span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-slate-900 font-mono">{totalInspected}</span>
             <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-              Active Ledger
+              Fixture ledger
             </span>
           </div>
           <span className="text-[10px] text-slate-500 mt-1 block">
@@ -118,24 +117,24 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
         {/* Contravention Rate */}
         <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Contravention Rate
+            Fixture finding rate
           </span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-rose-700 font-mono">{contraventionRate}%</span>
             <span className="text-xs font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
-              {nonCompliantCount} Non-compliant
+              {nonCompliantCount} flagged fixture records
             </span>
           </div>
           <span className="text-[10px] text-slate-500 mt-1 block">
-            Section 18(1) prima facie contraventions
+            Derived only from the preloaded fixture cases
           </span>
         </div>
 
-        {/* Form VIII Notices */}
+        {/* Fixture finding count — not a legal notice count. */}
         <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Form VIII Notices Actionable
+            Fixture findings requiring review
           </span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-slate-900 font-mono">
@@ -143,29 +142,29 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
             </span>
             <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded flex items-center gap-1">
               <FileText className="w-3 h-3" />
-              15-Day Show Cause
+              Screening only
             </span>
           </div>
           <span className="text-[10px] text-slate-500 mt-1 block">
-            Eligible for legal notice generation
+            Maanak does not generate official notices
           </span>
         </div>
 
         {/* Recoverable Penalties */}
         <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Sec. 36(1) Potential Penalty
+            Fixture penalty field
           </span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-slate-900 font-mono">
               ₹{(totalPenalties / 1000).toFixed(0)}k
             </span>
             <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-              Compounding Scope
+              Not a legal estimate
             </span>
           </div>
           <span className="text-[10px] text-slate-500 mt-1 block">
-            ₹25,000 baseline per statutory infraction
+            Synthetic fixture value; not a legal penalty
           </span>
         </div>
 
@@ -179,9 +178,9 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <Scale className="w-4 h-4 text-blue-700" />
-              Prevalence of Statutory Rule Contraventions
+              Prevalence of fixture findings
             </h3>
-            <span className="text-[11px] text-slate-400 font-mono">LMPC Rules 2011</span>
+            <span className="text-[11px] text-slate-400 font-mono">Fixture labels only</span>
           </div>
 
           <div className="space-y-4 text-xs">
@@ -209,7 +208,7 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <Building2 className="w-4 h-4 text-blue-700" />
-              Zonal Circle Compliance Rates
+              Fixture group comparison
             </h3>
             <span className="text-[11px] text-slate-400 font-mono">Circle Efficiency</span>
           </div>
@@ -220,7 +219,7 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
                 <div>
                   <span className="font-semibold text-slate-900 block text-xs">{c.circle}</span>
                   <span className="text-[10px] text-slate-500">
-                    {c.inspected} audited • {c.violations} notices
+                    {c.inspected} fixture records • {c.violations} findings
                   </span>
                 </div>
                 <div className="text-right">
@@ -244,7 +243,7 @@ export const EnforcementDashboard: React.FC<EnforcementDashboardProps> = ({
       {/* Recent Surveillance Log */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
         <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
-          Live Enforcement & Inspection Action Feed
+          Demo fixture activity feed
         </h3>
         <div className="divide-y divide-slate-100 text-xs">
           {cases.slice(0, 5).map((c) => (
