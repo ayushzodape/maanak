@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
-import { createCanonicalScanResult, createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult } from '../src/domain';
+import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult } from '../src/domain';
 import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
+import { CURRENT_RULE_DEFINITIONS, evaluateScan, RULESET_VERSION } from '../src/evaluation';
 import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256 } from './repository';
 import { AuthConfig, AuthenticatedUser, configuredAuthFromEnvironment, InMemorySessionStore, readSessionToken, SESSION_COOKIE, SessionStore } from './auth';
 
@@ -185,11 +186,21 @@ export function createApp(
         res.status(404).json(apiError('SCAN_NOT_FOUND', 'scan was not found'));
         return;
       }
-      const result = createCanonicalScanResult(req.body);
-      if (result.scanId !== scan.id) {
-        res.status(400).json(apiError('RESULT_SCAN_MISMATCH', 'canonical result does not belong to scan'));
+      if (scan.images.length === 0) {
+        res.status(409).json(apiError('SCAN_NOT_READY', 'a source image is required before evaluation'));
         return;
       }
+      if (scan.processing.lifecycle !== 'PROCESSING' || scan.processing.stage !== 'EXTRACTING') {
+        res.status(409).json(apiError('SCAN_NOT_READY', 'successful extraction is required before evaluation'));
+        return;
+      }
+      if (scan.ruleVersion !== RULESET_VERSION) {
+        res.status(409).json(apiError('RULE_VERSION_UNAVAILABLE', 'the requested rule version is not available for server evaluation'));
+        return;
+      }
+      // The request body is intentionally ignored. Results are derived only
+      // from persisted observations and the server-owned verified ruleset.
+      const { canonicalResult: result } = evaluateScan(scan.id, scan.observations, CURRENT_RULE_DEFINITIONS);
       const completedScan = repository.saveCanonicalResult(scan.id, result);
       res.status(201).json({ scan: completedScan, result });
     } catch (error) {

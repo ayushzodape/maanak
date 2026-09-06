@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createApp } from './app';
 import { MockLocalExtractionAdapter } from '../src/extraction';
+import { RULESET_VERSION } from '../src/evaluation';
 
 async function withServer<T>(callback: (baseUrl: string) => Promise<T>, app = createApp()): Promise<T> {
   const server = app.listen(0);
@@ -175,6 +176,30 @@ test('live extraction failure is explicit and leaves the uploaded scan errored',
   });
 });
 
+test('does not turn extraction failure into a completed uncertain result', async () => {
+  await withServer(async (baseUrl) => {
+    const createResponse = await fetch(`${baseUrl}/scans`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ productName: 'Failed extraction', sourceType: 'PHYSICAL_PHOTO', ruleVersion: RULESET_VERSION }),
+    });
+    const scan = await createResponse.json() as { id: string };
+    const uploadResponse = await fetch(`${baseUrl}/scans/${scan.id}/images`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: new Uint8Array([1, 2, 3]),
+    });
+    assert.equal(uploadResponse.status, 502);
+
+    const resultResponse = await fetch(`${baseUrl}/scans/${scan.id}/result`, { method: 'POST' });
+    assert.equal(resultResponse.status, 409);
+    const persisted = await (await fetch(`${baseUrl}/scans/${scan.id}`)).json() as { processing: { lifecycle: string; stage: string }; evaluations: unknown[] };
+    assert.equal(persisted.processing.lifecycle, 'ERROR');
+    assert.equal(persisted.processing.stage, 'ERROR');
+    assert.equal(persisted.evaluations.length, 0);
+  });
+});
+
 test('does not allow a demo adapter to serve a LIVE scan', async () => {
   const app = createApp(undefined, new MockLocalExtractionAdapter([{
     id: 'demo-observation', field: 'mrp', value: 120, confidence: 0.99,
@@ -237,34 +262,43 @@ test('logout invalidates the server session', async () => {
   }
 });
 
-test('persists a canonical result and exposes it through filtered history', async () => {
+test('derives and persists the canonical result from server-owned observations and rules', async () => {
+  const app = createApp(undefined, new MockLocalExtractionAdapter([]));
   await withServer(async (baseUrl) => {
     const createResponse = await fetch(`${baseUrl}/scans`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ productName: 'History commodity', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'verified-test-ruleset' }),
+      body: JSON.stringify({ productName: 'History commodity', sourceType: 'PHYSICAL_PHOTO', ruleVersion: RULESET_VERSION, mode: 'DEMO_FIXTURE' }),
     });
     const scan = await createResponse.json() as { id: string };
-    const generatedAt = '2026-09-06T12:00:00.000Z';
+    const uploadResponse = await fetch(`${baseUrl}/scans/${scan.id}/images`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: new Uint8Array([1, 2, 3]),
+    });
+    assert.equal(uploadResponse.status, 201);
     const saveResponse = await fetch(`${baseUrl}/scans/${scan.id}/result`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        scanId: scan.id,
-        overallResult: 'UNCERTAIN',
+        scanId: 'attacker-chosen-scan',
+        overallResult: 'PASS',
         evaluations: [{
-          id: 'evaluation-history', ruleId: 'verified-test-rule', ruleVersion: 'verified-test-ruleset',
-          observationId: null, result: 'UNCERTAIN', observationConfidence: null,
-          reason: 'Evidence is insufficient for this test scan.', evidence: null, evaluatedAt: generatedAt,
+          id: 'attacker-chosen-evaluation', ruleId: 'attacker-chosen-rule', ruleVersion: 'attacker-chosen-version',
+          observationId: null, result: 'PASS', observationConfidence: 1,
+          reason: 'Attacker supplied result.', evidence: null, evaluatedAt: '2026-09-06T12:00:00.000Z',
         }],
-        generatedAt,
+        generatedAt: '2026-09-06T12:00:00.000Z',
         source: 'DETERMINISTIC_RULE_ENGINE',
       }),
     });
     assert.equal(saveResponse.status, 201);
+    const saved = await saveResponse.json() as { result: { overallResult: string; evaluations: unknown[] } };
+    assert.equal(saved.result.overallResult, 'UNCERTAIN');
+    assert.equal(saved.result.evaluations.length, 7);
     const persistedScan = await (await fetch(`${baseUrl}/scans/${scan.id}`)).json() as { processing: { lifecycle: string }; evaluations: unknown[] };
     assert.equal(persistedScan.processing.lifecycle, 'COMPLETE');
-    assert.equal(persistedScan.evaluations.length, 1);
+    assert.equal(persistedScan.evaluations.length, 7);
 
     const historyResponse = await fetch(`${baseUrl}/scans?productName=history&result=UNCERTAIN&from=2026-09-06T00:00:00.000Z&to=2026-09-07T00:00:00.000Z`);
     assert.equal(historyResponse.status, 200);
@@ -273,5 +307,5 @@ test('persists a canonical result and exposes it through filtered history', asyn
     assert.equal(history.items[0].scan.id, scan.id);
     assert.equal(history.items[0].result.scanId, scan.id);
     assert.equal(history.items[0].result.overallResult, 'UNCERTAIN');
-  });
+  }, app);
 });

@@ -17,7 +17,7 @@ export interface ScanApiClient {
   createScan(input: { productName: string; sourceType: SourceType; ruleVersion: string; mode?: 'LIVE' | 'DEMO_FIXTURE' }): Promise<Scan>;
   uploadSourceImage(scanId: string, image: Blob, capturedAt?: string): Promise<{ image: EvidenceImage; scan: Scan }>;
   getScan(scanId: string): Promise<Scan>;
-  saveResult(scanId: string, result: CanonicalScanResult): Promise<{ scan: Scan; result: CanonicalScanResult }>;
+  saveResult(scanId: string): Promise<{ scan: Scan; result: CanonicalScanResult }>;
   getResult(scanId: string): Promise<CanonicalScanResult>;
   listHistory(filters?: { productName?: string; result?: ComplianceResult; from?: string; to?: string }): Promise<ScanHistoryEntry[]>;
 }
@@ -41,7 +41,7 @@ export class ScanApiError extends Error {
 export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): ScanApiClient {
   return {
     async login(username, password) {
-      const response = await fetch(`${baseUrl}/auth/login`, {
+      const response = await fetchWithTimeout(`${baseUrl}/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
@@ -52,18 +52,18 @@ export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): 
     },
 
     async getSession() {
-      const response = await fetch(`${baseUrl}/auth/session`, { credentials: 'include' });
+      const response = await fetchWithTimeout(`${baseUrl}/auth/session`, { credentials: 'include' });
       const payload = await parseResponse<{ user: AuthenticatedUser }>(response, onUnauthorized);
       return payload.user;
     },
 
     async logout() {
-      const response = await fetch(`${baseUrl}/auth/logout`, { method: 'POST', credentials: 'include' });
+      const response = await fetchWithTimeout(`${baseUrl}/auth/logout`, { method: 'POST', credentials: 'include' });
       if (!response.ok) await parseResponse<unknown>(response, onUnauthorized);
     },
 
     async createScan(input) {
-      const response = await fetch(`${baseUrl}/scans`, {
+      const response = await fetchWithTimeout(`${baseUrl}/scans`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
@@ -75,7 +75,7 @@ export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): 
     async uploadSourceImage(scanId, image, capturedAt) {
       const headers: Record<string, string> = { 'content-type': image.type || 'application/octet-stream' };
       if (capturedAt) headers['x-captured-at'] = capturedAt;
-      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/images`, {
+      const response = await fetchWithTimeout(`${baseUrl}/scans/${encodeURIComponent(scanId)}/images`, {
         method: 'POST',
         credentials: 'include',
         headers,
@@ -85,29 +85,27 @@ export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): 
     },
 
     async getScan(scanId) {
-      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}`, { credentials: 'include' });
+      const response = await fetchWithTimeout(`${baseUrl}/scans/${encodeURIComponent(scanId)}`, { credentials: 'include' });
       return parseResponse<Scan>(response, onUnauthorized);
     },
 
-    async saveResult(scanId, result) {
-      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`, {
+    async saveResult(scanId) {
+      const response = await fetchWithTimeout(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(result),
       });
       return parseResponse<{ scan: Scan; result: CanonicalScanResult }>(response, onUnauthorized);
     },
 
     async getResult(scanId) {
-      const response = await fetch(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`, { credentials: 'include' });
+      const response = await fetchWithTimeout(`${baseUrl}/scans/${encodeURIComponent(scanId)}/result`, { credentials: 'include' });
       return parseResponse<CanonicalScanResult>(response, onUnauthorized);
     },
 
     async listHistory(filters = {}) {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
-      const response = await fetch(`${baseUrl}/scans${params.toString() ? `?${params}` : ''}`, { credentials: 'include' });
+      const response = await fetchWithTimeout(`${baseUrl}/scans${params.toString() ? `?${params}` : ''}`, { credentials: 'include' });
       const payload = await parseResponse<{ items: ScanHistoryEntry[] }>(response, onUnauthorized);
       return payload.items;
     },
@@ -115,7 +113,12 @@ export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): 
 }
 
 async function parseResponse<T>(response: Response, onUnauthorized?: () => void): Promise<T> {
-  const payload = await response.json() as T | ScanApiErrorPayload;
+  let payload: T | ScanApiErrorPayload;
+  try {
+    payload = await response.json() as T | ScanApiErrorPayload;
+  } catch {
+    throw new ScanApiError(response.status, 'INVALID_RESPONSE', 'scan API returned an unreadable response');
+  }
   if (!response.ok) {
     if (response.status === 401) onUnauthorized?.();
     const error = payload as ScanApiErrorPayload;
@@ -128,5 +131,21 @@ async function parseResponse<T>(response: Response, onUnauthorized?: () => void)
   return payload as T;
 }
 
-/** No compliance result is manufactured here; evaluation is not implemented yet. */
+const API_REQUEST_TIMEOUT_MS = 30_000;
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ScanApiError(408, 'REQUEST_TIMEOUT', 'scan API request timed out. Check the connection and retry.');
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
 export type ScanApiResult = Scan | CanonicalScanResult;

@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, LoaderCircle, Upload, X } from 'lucide-react';
 import { CanonicalScanResult, Scan, SourceType } from '../domain';
 import { createScanApiClient } from '../services/scanApi';
-import { CURRENT_RULE_DEFINITIONS, evaluateScan, RULESET_VERSION } from '../evaluation';
+import { RULESET_VERSION } from '../evaluation';
 import {
   initialScanEntryState,
   ScanEntryState,
@@ -36,6 +36,7 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
   const scanApi = useMemo(() => createScanApiClient('', onUnauthorized), [onUnauthorized]);
 
   const update = (event: Parameters<typeof transitionScanEntry>[1]) => {
@@ -74,6 +75,7 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
     }
 
     try {
+      cancelledRef.current = false;
       update({ type: 'UPLOAD_STARTED' });
       const createdScan = scan || await scanApi.createScan({
         productName: flow.productName.trim(),
@@ -82,14 +84,11 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
       });
       setScan(createdScan);
       const uploaded = await scanApi.uploadSourceImage(createdScan.id, selectedFile);
+      if (cancelledRef.current) return;
       setScan(uploaded.scan);
       update({ type: 'UPLOAD_SUCCEEDED', scanId: uploaded.scan.id });
-      const { canonicalResult } = evaluateScan(
-        uploaded.scan.id,
-        uploaded.scan.observations,
-        CURRENT_RULE_DEFINITIONS,
-      );
-      const persisted = await scanApi.saveResult(uploaded.scan.id, canonicalResult);
+      const persisted = await scanApi.saveResult(uploaded.scan.id);
+      if (cancelledRef.current) return;
       onScanCreated?.(persisted.scan, persisted.result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed. Please retry.';
@@ -98,10 +97,12 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
   };
 
   const handleRetry = () => {
+    cancelledRef.current = false;
     setFlow((current) => transitionScanEntry(current, { type: 'RETRY' }));
   };
 
   const handleClose = () => {
+    cancelledRef.current = true;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     onClose();
   };
@@ -196,7 +197,7 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
             <div className="py-8 text-center space-y-3">
               <LoaderCircle className="w-8 h-8 text-blue-700 animate-spin mx-auto" />
               <h3 className="font-bold text-slate-900 text-sm">{PROCESSING_COPY[flow.status]}</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">The original image has been submitted as evidence. No compliance result is generated until extraction and deterministic evaluation are connected.</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">The original image is retained as evidence. The server extracts observations and applies the versioned deterministic rules; uncertain data remains uncertain.</p>
               {scan && <p className="text-[11px] text-slate-400 font-mono">Scan ID: {scan.id}</p>}
             </div>
           )}

@@ -18,7 +18,7 @@ import { ScanHistoryScreen } from './components/ScanHistoryScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { CanonicalScanResult, Scan } from './domain';
 import { createScanApiClient } from './services/scanApi';
-import { AuthenticatedUser, ScanHistoryEntry } from './services/scanApi';
+import { AuthenticatedUser, ScanApiError, ScanHistoryEntry } from './services/scanApi';
 import { INITIAL_CASES } from './data/sampleCases';
 import { PackageEvidence, DeclarationAuditItem, UserRole, ComplianceStatus } from './types';
 
@@ -36,20 +36,36 @@ export default function App() {
   const [resultScan, setResultScan] = useState<Scan | null>(null);
   const [canonicalResult, setCanonicalResult] = useState<CanonicalScanResult | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
   const scanApi = createScanApiClient('', () => setAuthenticatedUser(null));
 
-  useEffect(() => {
+  const checkSession = () => {
+    setAuthLoading(true);
+    setAuthError(null);
     scanApi.getSession()
-      .then(setAuthenticatedUser)
-      .catch(() => setAuthenticatedUser(null))
+      .then((user) => {
+        setAuthenticatedUser(user);
+        setAuthError(null);
+      })
+      .catch((error) => {
+        if (error instanceof ScanApiError && error.status === 401) {
+          setAuthenticatedUser(null);
+          return;
+        }
+        setAuthError('The screening server could not be reached. Check the network and retry.');
+      })
       .finally(() => setAuthLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { checkSession(); }, []);
 
   if (authLoading) return <main className="min-h-screen bg-slate-100 flex items-center justify-center text-xs text-slate-500">Checking screening session…</main>;
+  if (authError) return <main className="min-h-screen bg-slate-100 flex items-center justify-center px-4"><div className="w-full max-w-sm rounded-lg border border-rose-200 bg-white p-6 text-center shadow-sm"><p className="text-sm font-bold text-slate-900">Screening server unavailable</p><p className="mt-2 text-xs text-slate-600">{authError}</p><button onClick={checkSession} className="mt-4 rounded bg-blue-700 px-4 py-2 text-xs font-bold text-white">Retry connection</button></div></main>;
   if (!authenticatedUser) return <LoginScreen onLogin={async (username, password) => {
     const user = await scanApi.login(username, password);
     setAuthenticatedUser(user);
+    setAuthError(null);
     return user;
   }} />;
 

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createApp } from './app';
 import { FileScanRepository } from './repository';
 import { join } from 'node:path';
