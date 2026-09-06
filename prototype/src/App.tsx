@@ -9,6 +9,7 @@
 
 import React, { useState } from 'react';
 import { Header } from './components/Header';
+import { HomeScreen } from './components/HomeScreen';
 import { InspectionWorkbench } from './components/InspectionWorkbench';
 import { StatutoryRepository } from './components/StatutoryRepository';
 import { EnforcementDashboard } from './components/EnforcementDashboard';
@@ -24,7 +25,7 @@ export default function App() {
   // Master state
   const [cases, setCases] = useState<PackageEvidence[]>(INITIAL_CASES);
   const [currentCase, setCurrentCase] = useState<PackageEvidence>(INITIAL_CASES[0]);
-  const [currentTab, setCurrentTab] = useState<'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice'>('workbench');
+  const [currentTab, setCurrentTab] = useState<'home' | 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice'>('home');
   const [activeRole, setActiveRole] = useState<UserRole>('LEGAL_METROLOGY_OFFICER');
 
   // Modal triggers
@@ -47,11 +48,8 @@ export default function App() {
   };
 
   // Add newly scanned custom case
-  const handleAddCase = (newCase: PackageEvidence) => {
-    setCases(prev => [newCase, ...prev]);
-    setCurrentCase(newCase);
-    setCurrentTab('workbench');
-    showNotification(`New commodity "${newCase.productName}" ingested and audited successfully.`);
+  const handleScanCreated = (scan: { productName: string }) => {
+    showNotification(`Source image for "${scan.productName}" uploaded. Analysis is pending.`);
   };
 
   // Save inspector human-in-the-loop override
@@ -140,6 +138,9 @@ export default function App() {
 
       {/* Main App Body */}
       <main className="flex-1 pb-10">
+        {currentTab === 'home' && (
+          <HomeScreen caseCount={cases.length} onStartScan={() => setIsCustomScanOpen(true)} />
+        )}
         {currentTab === 'workbench' && (
           <InspectionWorkbench
             currentCase={currentCase}
@@ -209,7 +210,7 @@ export default function App() {
       {isCustomScanOpen && (
         <CustomScanModal
           onClose={() => setIsCustomScanOpen(false)}
-          onAddCase={handleAddCase}
+          onScanCreated={handleScanCreated}
         />
       )}
 

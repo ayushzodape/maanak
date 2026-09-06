@@ -7,12 +7,12 @@
  */
 
 import React from 'react';
-import { ShieldCheck, Scale, Database, BarChart3, BookOpen, FileText, UserCheck, AlertCircle } from 'lucide-react';
+import { Home, ShieldCheck, Scale, Database, BarChart3, BookOpen, FileText, UserCheck, AlertCircle } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface HeaderProps {
-  currentTab: 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice';
-  onSelectTab: (tab: 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice') => void;
+  currentTab: 'home' | 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice';
+  onSelectTab: (tab: 'home' | 'workbench' | 'repository' | 'dashboard' | 'rules' | 'notice') => void;
   activeRole: UserRole;
   onChangeRole: (role: UserRole) => void;
   onOpenHelpline: () => void;
@@ -116,6 +116,15 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <nav className="flex items-center justify-between overflow-x-auto py-1.5 no-scrollbar">
           <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={() => onSelectTab('home')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                currentTab === 'home' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span>Home</span>
+            </button>
             <button
               onClick={() => onSelectTab('workbench')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
