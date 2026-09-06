@@ -13,6 +13,11 @@ const OBSERVATION_FIELDS = new Set([
   'mrp',
   'consumer_care',
   'other_label_text',
+  'principal_display_panel_area_cm2',
+  'character_height_mm',
+  'character_width_mm',
+  'container_marking_method',
+  'package_scope',
 ]);
 const OBSERVATION_STATUSES: readonly ObservationStatus[] = [
   'OBSERVED',
@@ -31,7 +36,7 @@ const RESPONSE_SCHEMA = {
         type: 'object',
         properties: {
           field: { type: 'string' },
-          value: { type: ['string', 'number', 'null'] },
+          value: { type: ['string', 'number', 'boolean', 'null'] },
           unit: { type: 'string', nullable: true },
           confidence: { type: 'number' },
           status: { type: 'string', enum: OBSERVATION_STATUSES },
@@ -56,11 +61,14 @@ const RESPONSE_SCHEMA = {
 
 const EXTRACTION_INSTRUCTIONS = [
   'Inspect the supplied packaged-commodity image and return only observable label evidence.',
-  'Use only these field names: manufacturer, generic_name, net_quantity, date_mfg, mrp, consumer_care, other_label_text.',
+  'Use only these field names: manufacturer, generic_name, net_quantity, date_mfg, mrp, consumer_care, other_label_text, principal_display_panel_area_cm2, character_height_mm, character_width_mm, container_marking_method, package_scope.',
   'If information is not visible, do not guess.',
   'If text is unreadable, report it as UNCERTAIN or NOT_DETECTED according to the observation model.',
   'Do not infer hidden declarations. Do not invent measurements.',
   'Do not infer legal compliance. Do not return PASS or FAIL.',
+  'For Rule 7 fields, report panel area and character dimensions only when a reliable physical scale reference is visible and the measurement is derivable. Otherwise use NOT_MEASURABLE and do not guess.',
+  'For container_marking_method, use only NORMAL, BLOWN, FORMED, MOULDED, MOLDED, EMBOSSED, or PERFORATED when visibly supported; otherwise use UNCERTAIN or NOT_DETECTED.',
+  'For package_scope, report IN_SCOPE, OUT_OF_SCOPE, or UNCERTAIN only when the image and supplied context support it; do not infer exemptions from product appearance alone.',
   'Return one observation for each requested field that is visible, not visible, not detected, or not measurable.',
   'The confidence value is confidence in the observation only, from 0 to 1.',
   'Bounding boxes must be normalized to the range 0 to 1 relative to the supplied image.',
@@ -216,8 +224,8 @@ function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isObservationValue(value: unknown): value is string | number | null {
-  return value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));
+function isObservationValue(value: unknown): value is string | number | boolean | null {
+  return value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
 }
 
 function parseBoundingBox(value: unknown): { x: number; y: number; width: number; height: number } {

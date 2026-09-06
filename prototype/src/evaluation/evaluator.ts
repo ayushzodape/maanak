@@ -34,6 +34,27 @@ function resultForObservation(observation: Observation | undefined, rule: Rule) 
   }
 }
 
+function evaluateRule7(observations: readonly Observation[], rule: Rule): { result: 'PASS' | 'FAIL' | 'UNCERTAIN' | 'NOT_APPLICABLE' | 'NOT_MEASURABLE'; reason: string; observation?: Observation } {
+  if (rule.logic.kind !== 'CHARACTER_HEIGHT_AREA') throw new Error('invalid Rule 7 logic');
+  const get = (field: string) => observations.find((item) => item.field === field);
+  const scope = get(rule.logic.fields.packageScope);
+  if (scope?.status === 'UNCERTAIN' || scope?.status === 'NOT_VISIBLE') return { result: 'UNCERTAIN', reason: 'Rule 7 applicability cannot be determined from the available evidence.', observation: scope };
+  if (scope?.value === false || scope?.value === 'OUT_OF_SCOPE') return { result: 'NOT_APPLICABLE', reason: 'The package is outside the supplied Rule 7 scope.', observation: scope };
+  const area = get(rule.logic.fields.panelArea);
+  const height = get(rule.logic.fields.characterHeight);
+  const width = get(rule.logic.fields.characterWidth);
+  const method = get(rule.logic.fields.markingMethod);
+  if ([area, height, width, method].some((item) => !item || item.status === 'NOT_MEASURABLE')) return { result: 'NOT_MEASURABLE', reason: 'Rule 7 requires reliable panel-area and character measurements with a traceable scale reference.', observation: area ?? height };
+  if ([area, height, width, method].some((item) => item!.status !== 'OBSERVED')) return { result: 'UNCERTAIN', reason: 'Rule 7 measurement evidence is not sufficiently reliable.', observation: area };
+  const a = Number(area!.value), h = Number(height!.value), w = Number(width!.value);
+  if (![a, h, w].every(Number.isFinite) || a < 0 || h < 0 || w < 0) return { result: 'UNCERTAIN', reason: 'Rule 7 measurement observations are invalid.', observation: area };
+  const blown = ['BLOWN', 'FORMED', 'MOULDED', 'MOLDED', 'EMBOSSED', 'PERFORATED'].includes(String(method!.value).toUpperCase());
+  const required = a < 50 ? (blown ? 1.5 : 1) : a < 100 ? (blown ? 3 : 1.5) : a < 500 ? (blown ? 4 : 2.5) : a < 2500 ? (blown ? 6 : 4) : 6;
+  return h >= required && w >= h / 3
+    ? { result: 'PASS', reason: `Observed character height and width meet Rule 7 Table-I and Rule 7(3) thresholds.`, observation: height }
+    : { result: 'FAIL', reason: `Observed character dimensions do not meet the Rule 7 Table-I height or Rule 7(3) width threshold.`, observation: height };
+}
+
 function evaluateRule(observations: readonly Observation[], rule: Rule): Evaluation {
   const field = rule.logic.kind === 'DECLARATION_PRESENCE' || rule.logic.kind === 'BLOCKED'
     ? rule.logic.field ?? null
@@ -41,7 +62,9 @@ function evaluateRule(observations: readonly Observation[], rule: Rule): Evaluat
   const matching = field ? observations.filter((observation) => observation.field === field) : [];
   const observation = matching[0];
 
-  const outcome = rule.logic.kind === 'NOT_APPLICABLE'
+  const outcome = rule.logic.kind === 'CHARACTER_HEIGHT_AREA'
+    ? evaluateRule7(observations, rule)
+    : rule.logic.kind === 'NOT_APPLICABLE'
     ? { result: 'NOT_APPLICABLE' as const, reason: rule.logic.reason }
     : rule.verificationStatus !== 'VERIFIED'
     ? observation?.status === 'NOT_MEASURABLE'
@@ -53,12 +76,12 @@ function evaluateRule(observations: readonly Observation[], rule: Rule): Evaluat
     id: `evaluation-${rule.id}`,
     ruleId: rule.id,
     ruleVersion: rule.sourceVersion,
-    observationId: observation?.id ?? null,
+    observationId: ('observation' in outcome ? outcome.observation?.id : observation?.id) ?? null,
     result: outcome.result,
-    observationConfidence: observation?.confidence ?? null,
-    observedValue: observation?.value,
+    observationConfidence: ('observation' in outcome ? outcome.observation?.confidence : observation?.confidence) ?? null,
+    observedValue: ('observation' in outcome ? outcome.observation?.value : observation?.value),
     reason: outcome.reason,
-    evidence: observation?.evidence ?? null,
+    evidence: ('observation' in outcome ? outcome.observation?.evidence : observation?.evidence) ?? null,
     evaluatedAt: new Date().toISOString(),
   });
 }

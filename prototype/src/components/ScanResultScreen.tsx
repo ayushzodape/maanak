@@ -3,7 +3,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon,
 import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
-import { createScreeningReport, renderHumanReadableReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
+import { createScreeningReport, renderHumanReadableReport, renderPdfReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
 import { formatBarcodeScaleEstimate, isBarcodeScaleEstimateValue } from '../measurement';
 import { EvidenceBackedExplanation } from '../explanations';
 
@@ -45,9 +45,9 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
   const report = reportBuild.report;
   const explanationsByEvaluationId = useMemo(() => new Map((report?.explanations ?? []).map((explanation) => [explanation.evaluationId, explanation])), [report]);
 
-  const download = (filename: string, content: string, type: string) => {
+  const download = (filename: string, content: string | Uint8Array, type: string) => {
     try {
-      const url = URL.createObjectURL(new Blob([content], { type }));
+      const url = URL.createObjectURL(new Blob([content as BlobPart], { type }));
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = filename;
@@ -61,7 +61,7 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
     return null;
   };
 
-  const exportReport = (filename: string, content: string, type: string) => {
+  const exportReport = (filename: string, content: string | Uint8Array, type: string) => {
     setExportError(null);
     const error = download(filename, content, type);
     if (error) setExportError(error);
@@ -125,6 +125,7 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
           <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.json`, serializeCanonicalJson(report), 'application/json')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download canonical JSON</button>
+          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.pdf`, renderPdfReport(report), 'application/pdf')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download PDF</button>
           <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.txt`, renderHumanReadableReport(report), 'text/plain;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download screening report</button>
         </div>
         {reportBuild.error && <p className="mt-2 text-xs text-rose-700">Report unavailable: {reportBuild.error}</p>}

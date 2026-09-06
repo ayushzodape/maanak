@@ -34,28 +34,36 @@ export const VERIFIED_RULE_DEFINITIONS: readonly Rule[] = declarationRules.map(
   }),
 );
 
-/** Rule 7 is intentionally blocked: the superseded PDP-area model is not used. */
-export const BLOCKED_RULE_7 = createRule({
+/** Rule 7(2)/(3), based on the consolidated DCA corpus PDF in docs/legal_corpus. */
+export const RULE_7 = createRule({
   id: 'LMPC_RULE_7_CHARACTER_HEIGHT',
   title: 'Rule 7 character-height screening',
-  source: 'docs/spec/LEGAL_RESEARCH_STATUS.md — Rule 7 legal gap record',
-  sourceVersion: 'blocked-pending-applicable-measurement-implementation',
+  source: 'docs/legal_corpus/lmpc_rules_2011_consolidated_dca.pdf — Rule 7(2), Rule 7(3), Table-I',
+  sourceVersion: 'GSR-629-E-rule-7-current-2018-01-01',
   effectiveFrom: null,
   verifiedOn: verificationDate,
-  verificationStatus: 'BLOCKED',
+  verificationStatus: 'VERIFIED',
   logic: {
-    kind: 'BLOCKED',
-    field: 'character_height',
-    reason: 'No verified applicable measurement implementation is available; the superseded PDP-area model is prohibited.',
+    kind: 'CHARACTER_HEIGHT_AREA',
+    fields: { panelArea: 'principal_display_panel_area_cm2', characterHeight: 'character_height_mm', characterWidth: 'character_width_mm', markingMethod: 'container_marking_method', packageScope: 'package_scope' },
   },
   knownGaps: [
     'Ordinary phone photographs are not certified measurement evidence.',
-    'Requirements for length, area, or number declarations remain unresolved in the repository legal research.',
-    'Do not reintroduce the PDP-area/caliper calculation.',
+    'Reliable millimetre measurement requires a physical scale reference; ordinary photographs are not certified measurement evidence.',
+    'Rule 26 and commodity-specific exemptions require separate verified applicability inputs.',
   ],
+});
+
+/** Compatibility fixture for tests and historical demo data; never active. */
+export const BLOCKED_RULE_7 = createRule({
+  ...RULE_7,
+  id: 'LMPC_RULE_7_CHARACTER_HEIGHT_BLOCKED_LEGACY',
+  sourceVersion: 'legacy-blocked-rule-7',
+  verificationStatus: 'BLOCKED',
+  logic: { kind: 'BLOCKED', field: 'character_height', reason: 'Legacy fixture placeholder; use the current PDF-backed Rule 7 definition.' },
 });
 
 export const CURRENT_RULE_DEFINITIONS: readonly Rule[] = [
   ...VERIFIED_RULE_DEFINITIONS,
-  BLOCKED_RULE_7,
+  RULE_7,
 ];

@@ -101,6 +101,36 @@ export function serializeCanonicalJson(report: ScreeningReportDocument): string 
   return JSON.stringify(report, null, 2);
 }
 
+/** Dependency-free text-first PDF export for the screening artifact. */
+export function renderPdfReport(report: ScreeningReportDocument): Uint8Array {
+  const lines = renderHumanReadableReport(report).split('\n');
+  const pages: string[][] = [];
+  for (let index = 0; index < lines.length; index += 48) pages.push(lines.slice(index, index + 48));
+  if (pages.length === 0) pages.push([]);
+  const objects: string[] = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${4 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>',
+  ];
+  pages.forEach((page, pageIndex) => {
+    const stream = ['BT', '/F1 9 Tf', '50 750 Td', ...page.map((line, index) => `${index === 0 ? '' : '0 -14 Td '}(${escapePdfText(line.slice(0, 112))}) Tj`), 'ET'].join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + pageIndex * 2} 0 R >>`);
+    objects.push(`<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`);
+  });
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => { offsets.push(new TextEncoder().encode(pdf).length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+  const xrefOffset = new TextEncoder().encode(pdf).length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+function escapePdfText(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)').replaceAll(/[^\x20-\x7E]/g, '?');
+}
+
 export function renderHumanReadableReport(report: ScreeningReportDocument): string {
   const lines = [
     'MAANAK DIGITAL COMPLIANCE SCREENING',
