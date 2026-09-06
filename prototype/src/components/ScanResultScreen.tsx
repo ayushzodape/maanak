@@ -5,6 +5,7 @@ import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
 import { createScreeningReport, renderHumanReadableReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
 import { formatBarcodeScaleEstimate, isBarcodeScaleEstimateValue } from '../measurement';
+import { EvidenceBackedExplanation } from '../explanations';
 
 interface ScanResultScreenProps {
   scan: Scan;
@@ -42,6 +43,7 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
     }
   }, [scan, result]);
   const report = reportBuild.report;
+  const explanationsByEvaluationId = useMemo(() => new Map((report?.explanations ?? []).map((explanation) => [explanation.evaluationId, explanation])), [report]);
 
   const download = (filename: string, content: string, type: string) => {
     try {
@@ -99,7 +101,7 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
           {result.evaluations.map((evaluation) => {
             const observation = evaluation.observationId ? observationsById.get(evaluation.observationId) : undefined;
             const rule = rulesById.get(evaluation.ruleId);
-            return <RequirementRow key={evaluation.id} evaluation={evaluation} observation={observation} rule={rule} onOpenEvidence={setSelectedEvidence} />;
+            return <RequirementRow key={evaluation.id} evaluation={evaluation} observation={observation} rule={rule} explanation={explanationsByEvaluationId.get(evaluation.id)} onOpenEvidence={setSelectedEvidence} />;
           })}
         </div>
       </div>
@@ -135,7 +137,7 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
   );
 };
 
-const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][number]; observation?: Observation; rule?: Rule; onOpenEvidence: (imageId: string) => void }> = ({ evaluation, observation, rule, onOpenEvidence }) => {
+const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][number]; observation?: Observation; rule?: Rule; explanation?: EvidenceBackedExplanation; onOpenEvidence: (imageId: string) => void }> = ({ evaluation, observation, rule, explanation, onOpenEvidence }) => {
   const hasEvidence = Boolean(evaluation.evidence?.imageId);
   return <article className="p-4 space-y-3">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -143,6 +145,10 @@ const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][
       {resultBadge(evaluation.result)}
     </div>
     <p className="text-xs text-slate-700">{evaluation.reason}</p>
+    {explanation && <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-950">
+      <p className="font-bold uppercase tracking-wider">Evidence-backed explanation</p>
+      <p className="mt-1 leading-relaxed">{explanation.text}</p>
+    </div>}
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
       <InfoCell label="Observation" value={observation ? `${observation.field}: ${formatObservationValue(observation.value)} (${observation.status})` : 'No observation supplied'} />
       <InfoCell label="Confidence" value={evaluation.observationConfidence === null ? 'Not available' : `${Math.round(evaluation.observationConfidence * 100)}% observation confidence`} />

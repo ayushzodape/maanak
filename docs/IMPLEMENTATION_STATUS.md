@@ -103,6 +103,12 @@ statutory evaluator. It records a clearly labelled `SCREENING ESTIMATE` with
 its source-image evidence, assumptions, confidence, and limitations. It does
 not create a legal measurement or feed any current rule definition.
 
+INNOV-002 has a deterministic English explanation boundary. It formats only
+the canonical result, versioned rule metadata, linked observation, evidence
+reference, and supplied limitations. It cannot alter the evaluation. Hindi and
+Marathi remain outside this slice and require the separately scoped
+multilingual explanation work.
+
 Rule 7 must not use the currently implemented PDP-area model. The superseded or
 unverified PDP-area table must not be reintroduced. Only verified rule data may
 be encoded; unresolved legal requirements are blockers, not implementation

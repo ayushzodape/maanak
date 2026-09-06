@@ -1,5 +1,6 @@
 import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
 import { formatBarcodeScaleEstimate, isBarcodeScaleEstimateValue } from '../measurement';
+import { createEvidenceBackedExplanation, EvidenceBackedExplanation } from '../explanations';
 
 export const SCREENING_DISCLAIMER = 'Maanak is a digital compliance screening system. This output is not an official inspection report, government notice, government certification, or certified measurement report.';
 
@@ -19,6 +20,7 @@ export interface ScreeningReportDocument {
     readonly completedAt?: string;
   };
   readonly canonicalResult: CanonicalScanResult;
+  readonly explanations: readonly EvidenceBackedExplanation[];
   readonly observations: readonly Observation[];
   readonly evidenceImages: Scan['images'];
   readonly ruleMetadata: readonly Pick<Rule, 'id' | 'title' | 'source' | 'sourceVersion' | 'effectiveFrom' | 'verifiedOn' | 'verificationStatus' | 'knownGaps'>[];
@@ -38,7 +40,7 @@ export function createScreeningReport(
   const ruleMetadata = rules.map(({ id, title, source, sourceVersion, effectiveFrom, verifiedOn, verificationStatus, knownGaps }) => ({
     id, title, source, sourceVersion, effectiveFrom, verifiedOn, verificationStatus, knownGaps,
   }));
-  const rulesById = new Map(ruleMetadata.map((rule) => [rule.id, rule]));
+  const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
   const observationsById = new Map(scan.observations.map((observation) => [observation.id, observation]));
   const imagesById = new Map(scan.images.map((image) => [image.id, image]));
   for (const evaluation of canonicalResult.evaluations) {
@@ -54,6 +56,16 @@ export function createScreeningReport(
       throw new Error(`evaluation ${evaluation.id} references unknown evidence image ${evaluation.evidence.imageId}`);
     }
   }
+  const explanations = canonicalResult.evaluations.map((evaluation) => {
+    const rule = rulesById.get(evaluation.ruleId)!;
+    const observation = evaluation.observationId === null ? undefined : observationsById.get(evaluation.observationId);
+    return createEvidenceBackedExplanation({
+      evaluation,
+      rule,
+      observation,
+      knownLimitations: rule.knownGaps,
+    });
+  });
   const limitations = [
     'This screening is limited to the observations and source images retained on this scan.',
     'Observation confidence is extraction confidence, not legal certainty.',
@@ -77,6 +89,7 @@ export function createScreeningReport(
       ...(scan.timestamps.completedAt ? { completedAt: scan.timestamps.completedAt } : {}),
     },
     canonicalResult,
+    explanations,
     observations: scan.observations,
     evidenceImages: scan.images,
     ruleMetadata,
@@ -105,6 +118,7 @@ export function renderHumanReadableReport(report: ScreeningReportDocument): stri
 
   for (const evaluation of report.canonicalResult.evaluations) {
     const rule = report.ruleMetadata.find((candidate) => candidate.id === evaluation.ruleId);
+    const explanation = report.explanations.find((candidate) => candidate.evaluationId === evaluation.id);
     const sourceImage = evaluation.evidence ? report.evidenceImages.find((image) => image.id === evaluation.evidence!.imageId) : undefined;
     lines.push(
       `${evaluation.ruleId}: ${evaluation.result}`,
@@ -112,6 +126,7 @@ export function renderHumanReadableReport(report: ScreeningReportDocument): stri
       `  Rule verification: ${rule?.verificationStatus ?? 'not available'}${rule?.verifiedOn ? ` (${rule.verifiedOn})` : ''}`,
       `  Rule source version: ${rule?.sourceVersion ?? evaluation.ruleVersion}`,
       `  Reason: ${evaluation.reason}`,
+      `  Evidence-backed explanation: ${explanation?.text ?? 'not available'}`,
       `  Observation: ${evaluation.observationId ?? 'none'}`,
       `  Confidence: ${evaluation.observationConfidence === null ? 'not available' : `${Math.round(evaluation.observationConfidence * 100)}%`}`,
       `  Evidence image: ${evaluation.evidence?.imageId ?? 'none'}`,

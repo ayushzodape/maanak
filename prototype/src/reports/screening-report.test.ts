@@ -18,11 +18,14 @@ test('JSON and human-readable report derive the same canonical result', () => {
   const json = JSON.parse(serializeCanonicalJson(report)) as typeof report;
   const text = renderHumanReadableReport(report);
   assert.deepEqual(json.canonicalResult, canonicalResult);
+  assert.equal(json.explanations.length, canonicalResult.evaluations.length);
+  assert.equal(json.explanations[0].result, canonicalResult.evaluations[0].result);
   assert.match(text, new RegExp(`Screening result: ${canonicalResult.overallResult}`));
   assert.match(text, new RegExp(evaluation.ruleId));
   assert.match(text, new RegExp(evaluation.result));
   assert.match(text, new RegExp(evaluation.evidence!.imageId));
   assert.match(text, new RegExp(reportRule.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(text, /Evidence-backed explanation:/);
 });
 
 test('report includes required metadata, evidence, limitations, and disclaimer', () => {
