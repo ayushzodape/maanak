@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/domain/domain.test.ts src/scan-flow/scan-flow.test.ts src/extraction/extraction.test.ts src/evaluation/evaluator.test.ts src/components/evidence-visualization.test.ts src/components/dashboard-metrics.test.ts src/reports/screening-report.test.ts src/validation/real-product-validation.test.ts server/app.test.ts server/repository.test.ts",
+    "test": "tsx --test src/domain/domain.test.ts src/scan-flow/scan-flow.test.ts src/extraction/extraction.test.ts src/evaluation/evaluator.test.ts src/components/evidence-visualization.test.ts src/components/dashboard-metrics.test.ts src/reports/screening-report.test.ts src/validation/real-product-validation.test.ts src/measurement/barcode-scale-estimation.test.ts server/app.test.ts server/repository.test.ts",
     "server": "tsx server/index.ts"
   },
   "dependencies": {

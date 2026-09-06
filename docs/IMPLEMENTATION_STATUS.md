@@ -98,6 +98,11 @@ Any visual measurement must identify its reference, assumptions, estimated
 value, confidence, and limitations. Without adequate scale evidence, the result
 is `NOT_MEASURABLE`.
 
+The barcode scale-estimation boundary for INNOV-001 is isolated from the
+statutory evaluator. It records a clearly labelled `SCREENING ESTIMATE` with
+its source-image evidence, assumptions, confidence, and limitations. It does
+not create a legal measurement or feed any current rule definition.
+
 Rule 7 must not use the currently implemented PDP-area model. The superseded or
 unverified PDP-area table must not be reintroduced. Only verified rule data may
 be encoded; unresolved legal requirements are blockers, not implementation

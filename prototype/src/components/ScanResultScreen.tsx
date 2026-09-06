@@ -4,6 +4,7 @@ import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
 import { createScreeningReport, renderHumanReadableReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
+import { formatBarcodeScaleEstimate, isBarcodeScaleEstimateValue } from '../measurement';
 
 interface ScanResultScreenProps {
   scan: Scan;
@@ -31,6 +32,7 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
   const [exportError, setExportError] = useState<string | null>(null);
   const style = RESULT_STYLES[result.overallResult];
   const observationsById = useMemo(() => new Map(scan.observations.map((observation) => [observation.id, observation])), [scan.observations]);
+  const barcodeEstimates = useMemo(() => scan.observations.filter((observation) => isBarcodeScaleEstimateValue(observation.value)), [scan.observations]);
   const rulesById = useMemo(() => new Map(CURRENT_RULE_DEFINITIONS.map((rule) => [rule.id, rule])), []);
   const reportBuild = useMemo(() => {
     try {
@@ -102,6 +104,16 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
         </div>
       </div>
 
+      {barcodeEstimates.length > 0 && <section className="rounded-lg border border-amber-200 bg-amber-50/50 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-amber-200">
+          <h2 className="text-sm font-bold text-amber-950">Screening estimates</h2>
+          <p className="text-[11px] text-amber-800 mt-0.5">These barcode-based scale references are observations only. They are not statutory measurements and do not determine the canonical result.</p>
+        </div>
+        <div className="divide-y divide-amber-100">
+          {barcodeEstimates.map((observation) => <BarcodeEstimateRow key={observation.id} observation={observation} onOpenEvidence={setSelectedEvidence} />)}
+        </div>
+      </section>}
+
       <div className="rounded-lg border border-slate-300 bg-slate-50 p-4">
         <p className="text-xs font-bold text-slate-900">Before export</p>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{SCREENING_DISCLAIMER}</p>
@@ -132,7 +144,7 @@ const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][
     </div>
     <p className="text-xs text-slate-700">{evaluation.reason}</p>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-      <InfoCell label="Observation" value={observation ? `${observation.field}: ${observation.value ?? 'no value'} (${observation.status})` : 'No observation supplied'} />
+      <InfoCell label="Observation" value={observation ? `${observation.field}: ${formatObservationValue(observation.value)} (${observation.status})` : 'No observation supplied'} />
       <InfoCell label="Confidence" value={evaluation.observationConfidence === null ? 'Not available' : `${Math.round(evaluation.observationConfidence * 100)}% observation confidence`} />
       <InfoCell label="Evidence" value={hasEvidence ? evaluation.evidence!.imageId : 'Incomplete evidence'} />
     </div>
@@ -140,6 +152,31 @@ const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][
     {hasEvidence && <button onClick={() => onOpenEvidence(evaluation.evidence!.imageId)} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900"><ImageIcon className="w-3.5 h-3.5" /> View source image <ExternalLink className="w-3 h-3" /></button>}
   </article>;
 };
+
+const BarcodeEstimateRow: React.FC<{ observation: Observation; onOpenEvidence: (imageId: string) => void }> = ({ observation, onOpenEvidence }) => {
+  if (!isBarcodeScaleEstimateValue(observation.value)) return null;
+  const hasEvidence = Boolean(observation.evidence?.imageId);
+  return <article className="p-4 space-y-2 text-[11px] text-amber-950">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <p className="font-bold uppercase tracking-wider">{observation.value.label} · barcode scale reference</p>
+        <p className="mt-1 text-amber-900">{formatBarcodeScaleEstimate(observation.value)}</p>
+      </div>
+      <span className="rounded border border-amber-300 px-2 py-1 font-bold">{observation.status}</span>
+    </div>
+    <p><span className="font-bold">Confidence:</span> {Math.round(observation.confidence * 100)}% observation confidence</p>
+    <p><span className="font-bold">Assumptions:</span> {observation.value.assumptions.join(' ')}</p>
+    <p><span className="font-bold">Limitations:</span> {observation.value.limitations.join(' ')}</p>
+    {hasEvidence && <button onClick={() => onOpenEvidence(observation.evidence!.imageId)} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900"><ImageIcon className="w-3.5 h-3.5" /> View source image <ExternalLink className="w-3 h-3" /></button>}
+    {!hasEvidence && <p className="text-amber-800">Source image evidence is unavailable.</p>}
+  </article>;
+};
+
+function formatObservationValue(value: unknown): string {
+  if (isBarcodeScaleEstimateValue(value)) return formatBarcodeScaleEstimate(value);
+  if (value === null || value === undefined) return 'no value';
+  return typeof value === 'object' ? JSON.stringify(value) ?? 'structured value' : String(value);
+}
 
 function InfoCell({ label, value }: { label: string; value: string }) {
   return <div className="rounded border border-slate-200 bg-slate-50 px-2.5 py-2"><p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">{label}</p><p className="mt-1 text-slate-700 break-words">{value}</p></div>;

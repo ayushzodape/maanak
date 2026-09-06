@@ -1,4 +1,5 @@
 import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
+import { formatBarcodeScaleEstimate, isBarcodeScaleEstimateValue } from '../measurement';
 
 export const SCREENING_DISCLAIMER = 'Maanak is a digital compliance screening system. This output is not an official inspection report, government notice, government certification, or certified measurement report.';
 
@@ -122,9 +123,19 @@ export function renderHumanReadableReport(report: ScreeningReportDocument): stri
   lines.push('', 'OBSERVATIONS', '------------');
   for (const observation of report.observations) {
     const sourceImage = observation.evidence ? report.evidenceImages.find((image) => image.id === observation.evidence!.imageId) : undefined;
-    lines.push(`${observation.id}: ${observation.field} = ${observation.value ?? 'no value'} [${observation.status}], confidence ${Math.round(observation.confidence * 100)}%, evidence ${observation.evidence?.imageId ?? 'none'} (${sourceImage?.storageKey ?? observation.evidence?.sourceImage?.storageKey ?? 'not available'})`);
+    const value = isBarcodeScaleEstimateValue(observation.value) ? formatBarcodeScaleEstimate(observation.value) : formatObservationValue(observation.value);
+    lines.push(`${observation.id}: ${observation.field} = ${value} [${observation.status}], confidence ${Math.round(observation.confidence * 100)}%, evidence ${observation.evidence?.imageId ?? 'none'} (${sourceImage?.storageKey ?? observation.evidence?.sourceImage?.storageKey ?? 'not available'})`);
+    if (isBarcodeScaleEstimateValue(observation.value)) {
+      lines.push(`  Estimate assumptions: ${observation.value.assumptions.join(' ')}`);
+      lines.push(`  Estimate limitations: ${observation.value.limitations.join(' ')}`);
+    }
   }
 
   lines.push('', 'LIMITATIONS', '-----------', ...report.limitations.map((limitation) => `- ${limitation}`), '', 'DISCLAIMER', '----------', report.disclaimer);
   return lines.join('\n');
+}
+
+function formatObservationValue(value: unknown): string {
+  if (value === null || value === undefined) return 'no value';
+  return typeof value === 'object' ? JSON.stringify(value) ?? 'structured value' : String(value);
 }

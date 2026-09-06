@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCanonicalScanResult, createEvidenceImage, createEvaluation, createObservation, createScan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
+import { createBarcodeScaleObservation } from '../measurement';
 import { createScreeningReport, renderHumanReadableReport, SCREENING_DISCLAIMER, serializeCanonicalJson } from './screening-report';
 
 const now = '2026-09-06T10:00:00.000Z';
@@ -47,4 +48,24 @@ test('report rejects evaluations that are not traceable to the scan or rule vers
     ...canonicalResult,
     evaluations: [{ ...evaluation, ruleVersion: 'wrong-version' }],
   }, CURRENT_RULE_DEFINITIONS, now), /does not match rule/);
+});
+
+test('human-readable report labels barcode data as an estimate with assumptions and limitations', () => {
+  const barcodeObservation = createBarcodeScaleObservation({
+    id: 'observation-barcode',
+    image,
+    barcodeFormat: 'EAN_13',
+    boundingBox: { x: 0.1, y: 0.2, width: 0.25, height: 0.1 },
+    detectionConfidence: 0.96,
+    minimumDetectionConfidence: 0.8,
+    observedAt: now,
+  });
+  const report = createScreeningReport({ ...scan, observations: [observation, barcodeObservation] }, canonicalResult, CURRENT_RULE_DEFINITIONS, now);
+  const text = renderHumanReadableReport(report);
+
+  assert.match(text, /SCREENING ESTIMATE/);
+  assert.match(text, /Estimate assumptions:/);
+  assert.match(text, /Estimate limitations:/);
+  assert.match(text, /not a certified measurement/i);
+  assert.match(text, /must not be used as a legal fact/i);
 });
