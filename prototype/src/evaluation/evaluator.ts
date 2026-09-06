@@ -41,7 +41,9 @@ function evaluateRule(observations: readonly Observation[], rule: Rule): Evaluat
   const matching = field ? observations.filter((observation) => observation.field === field) : [];
   const observation = matching[0];
 
-  const outcome = rule.verificationStatus !== 'VERIFIED'
+  const outcome = rule.logic.kind === 'NOT_APPLICABLE'
+    ? { result: 'NOT_APPLICABLE' as const, reason: rule.logic.reason }
+    : rule.verificationStatus !== 'VERIFIED'
     ? observation?.status === 'NOT_MEASURABLE'
       ? { result: 'NOT_MEASURABLE' as const, reason: `${rule.title} is blocked and the required measurement is not measurable.` }
       : { result: 'UNCERTAIN' as const, reason: `${rule.title} is blocked: ${rule.logic.kind === 'BLOCKED' ? rule.logic.reason : 'the rule is not verified.'}` }

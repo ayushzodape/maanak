@@ -9,6 +9,7 @@ export type RuleVerificationStatus = 'VERIFIED' | 'UNVERIFIED' | 'BLOCKED';
 
 export type RuleLogic =
   | { readonly kind: 'DECLARATION_PRESENCE'; readonly field: string }
+  | { readonly kind: 'NOT_APPLICABLE'; readonly reason: string; readonly field?: string }
   | { readonly kind: 'BLOCKED'; readonly reason: string; readonly field?: string };
 
 export interface Rule {
@@ -38,11 +39,12 @@ export function createRule(input: RuleInput): Rule {
   }
   if (input.effectiveFrom !== null) assertTimestamp(input.effectiveFrom, 'effectiveFrom');
   if (input.verifiedOn !== null) assertTimestamp(input.verifiedOn, 'verifiedOn');
-  if (!input.logic || !['DECLARATION_PRESENCE', 'BLOCKED'].includes(input.logic.kind)) {
+  if (!input.logic || !['DECLARATION_PRESENCE', 'NOT_APPLICABLE', 'BLOCKED'].includes(input.logic.kind)) {
     throw new DomainValidationError('unsupported rule logic');
   }
   if (input.logic.kind === 'DECLARATION_PRESENCE') assertNonEmpty(input.logic.field, 'logic.field');
-  if (input.logic.kind === 'BLOCKED') assertNonEmpty(input.logic.reason, 'logic.reason');
+  if (input.logic.kind === 'NOT_APPLICABLE' || input.logic.kind === 'BLOCKED') assertNonEmpty(input.logic.reason, 'logic.reason');
+  if (input.logic.kind === 'NOT_APPLICABLE' && input.logic.field !== undefined) assertNonEmpty(input.logic.field, 'logic.field');
   if (input.logic.kind === 'BLOCKED' && input.logic.field !== undefined) assertNonEmpty(input.logic.field, 'logic.field');
   if (!['VERIFIED', 'UNVERIFIED', 'BLOCKED'].includes(input.verificationStatus)) {
     throw new DomainValidationError(`unsupported rule verification status: ${String(input.verificationStatus)}`);

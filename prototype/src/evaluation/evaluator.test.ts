@@ -42,6 +42,24 @@ test('NOT_MEASURABLE remains NOT_MEASURABLE and cannot become PASS', () => {
   assert.equal(evaluation.result, 'NOT_MEASURABLE');
 });
 
+test('explicitly non-applicable rules produce NOT_APPLICABLE deterministically', () => {
+  const rule = {
+    id: 'rule-not-applicable',
+    title: 'Out-of-scope declaration',
+    source: 'verified applicability source',
+    sourceVersion: 'verified-applicability-1',
+    effectiveFrom: null,
+    verifiedOn: now,
+    verificationStatus: 'VERIFIED' as const,
+    logic: { kind: 'NOT_APPLICABLE' as const, reason: 'This verified rule does not apply to this product context.' },
+    knownGaps: [],
+  };
+  const evaluation = evaluateObservations([observation('OBSERVED')], [rule])[0];
+  assert.equal(evaluation.result, 'NOT_APPLICABLE');
+  assert.equal(evaluation.reason, rule.logic.reason);
+  assert.equal(evaluateScan('scan-na', [observation('OBSERVED')], [rule], now).canonicalResult.overallResult, 'NOT_APPLICABLE');
+});
+
 test('LLM wording cannot influence deterministic output', () => {
   const rule = VERIFIED_RULE_DEFINITIONS.find(({ logic }) => logic.kind === 'DECLARATION_PRESENCE' && logic.field === 'mrp')!;
   const base = observation('OBSERVED');
