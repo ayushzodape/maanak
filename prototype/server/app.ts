@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { createCanonicalScanResult, createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult } from '../src/domain';
 import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
 import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256 } from './repository';
+import { AuthConfig, AuthenticatedUser, configuredAuthFromEnvironment, InMemorySessionStore, readSessionToken, SESSION_COOKIE, SessionStore } from './auth';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -25,10 +26,45 @@ export function createApp(
   repository: ScanRepository = new InMemoryScanRepository(),
   demoExtractionAdapter: ExtractionAdapter = new UnavailableExtractionAdapter(),
   liveExtractionAdapter: ExtractionAdapter = new UnavailableExtractionAdapter(),
+  authConfig: AuthConfig | undefined = configuredAuthFromEnvironment(),
+  sessionStore: SessionStore = new InMemorySessionStore(),
 ): express.Express {
   const app = express();
   app.use(express.json({ limit: '256kb' }));
   app.use(express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: MAX_IMAGE_BYTES }));
+
+  app.post('/auth/login', (req, res) => {
+    if (!authConfig) {
+      res.status(503).json(apiError('AUTH_NOT_CONFIGURED', 'server authentication is not configured'));
+      return;
+    }
+    const username = req.body?.username;
+    const password = req.body?.password;
+    if (username !== authConfig.username || password !== authConfig.password) {
+      res.status(401).json(apiError('INVALID_CREDENTIALS', 'username or password is incorrect'));
+      return;
+    }
+    const session = sessionStore.create();
+    res.cookie(SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+    res.status(200).json({ user: session.user });
+  });
+
+  app.get('/auth/session', (req, res) => {
+    const user = sessionStore.get(readSessionToken(req.header('cookie')));
+    if (!user) {
+      res.status(401).json(apiError('AUTH_REQUIRED', 'authenticated session is required'));
+      return;
+    }
+    res.status(200).json({ user });
+  });
+
+  app.post('/auth/logout', (req, res) => {
+    sessionStore.delete(readSessionToken(req.header('cookie')));
+    res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+    res.status(204).send();
+  });
+
+  app.use('/scans', requireAuthenticated(sessionStore));
 
   app.post('/scans', (req, res, next) => {
     try {
@@ -245,6 +281,18 @@ function optionalResult(value: unknown): ComplianceResult | undefined {
 
 function apiError(code: string, message: string): ApiErrorBody {
   return { error: { code, message } };
+}
+
+function requireAuthenticated(sessionStore: SessionStore) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = sessionStore.get(readSessionToken(req.header('cookie')));
+    if (!user) {
+      res.status(401).json(apiError('AUTH_REQUIRED', 'authenticated session is required'));
+      return;
+    }
+    res.locals.user = user as AuthenticatedUser;
+    next();
+  };
 }
 
 function isPayloadTooLargeError(error: unknown): boolean {

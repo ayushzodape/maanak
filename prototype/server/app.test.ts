@@ -11,12 +11,31 @@ async function withServer<T>(callback: (baseUrl: string) => Promise<T>, app = cr
     server.close();
     throw new Error('test server did not expose a TCP address');
   }
+  const loginResponse = await fetch(`http://127.0.0.1:${address.port}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'test-inspector', password: 'test-password' }),
+  });
+  // The test app is configured with these credentials through the process env below.
+  assert.equal(loginResponse.status, 200);
+  const sessionCookie = loginResponse.headers.get('set-cookie')?.split(';', 1)[0];
+  assert.ok(sessionCookie);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if (typeof input === 'string' && input.startsWith(`http://127.0.0.1:${address.port}/scans`)) headers.set('cookie', sessionCookie);
+    return originalFetch(input, { ...init, headers });
+  }) as typeof fetch;
   try {
     return await callback(`http://127.0.0.1:${address.port}`);
   } finally {
+    globalThis.fetch = originalFetch;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
+
+process.env.MAANAK_AUTH_USERNAME = 'test-inspector';
+process.env.MAANAK_AUTH_PASSWORD = 'test-password';
 
 test('creates and retrieves a scan with validated metadata', async () => {
   await withServer(async (baseUrl) => {
@@ -174,6 +193,24 @@ test('does not allow a demo adapter to serve a LIVE scan', async () => {
     const persisted = await (await fetch(`${baseUrl}/scans/${scan.id}`)).json() as { observations: unknown[] };
     assert.equal(persisted.observations.length, 0);
   }, app);
+});
+
+test('rejects unauthenticated access to scans, history, results, and source images', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  try {
+    for (const path of ['/scans', '/scans/scan_missing', '/scans/scan_missing/result', '/scans/scan_missing/images/image_missing']) {
+      const response = await fetch(`${baseUrl}${path}`);
+      assert.equal(response.status, 401, path);
+      assert.equal((await response.json() as { error: { code: string } }).error.code, 'AUTH_REQUIRED');
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 test('persists a canonical result and exposes it through filtered history', async () => {

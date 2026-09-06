@@ -5,7 +5,7 @@
  * Maanak - Digital Compliance Screening
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { HomeScreen } from './components/HomeScreen';
 import { InspectionWorkbench } from './components/InspectionWorkbench';
@@ -15,9 +15,10 @@ import { InspectorOverrideModal } from './components/InspectorOverrideModal';
 import { CustomScanModal } from './components/CustomScanModal';
 import { ScanResultScreen } from './components/ScanResultScreen';
 import { ScanHistoryScreen } from './components/ScanHistoryScreen';
+import { LoginScreen } from './components/LoginScreen';
 import { CanonicalScanResult, Scan } from './domain';
 import { createScanApiClient } from './services/scanApi';
-import { ScanHistoryEntry } from './services/scanApi';
+import { AuthenticatedUser, ScanHistoryEntry } from './services/scanApi';
 import { INITIAL_CASES } from './data/sampleCases';
 import { PackageEvidence, DeclarationAuditItem, UserRole, ComplianceStatus } from './types';
 
@@ -34,7 +35,23 @@ export default function App() {
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [resultScan, setResultScan] = useState<Scan | null>(null);
   const [canonicalResult, setCanonicalResult] = useState<CanonicalScanResult | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
   const scanApi = createScanApiClient();
+
+  useEffect(() => {
+    scanApi.getSession()
+      .then(setAuthenticatedUser)
+      .catch(() => setAuthenticatedUser(null))
+      .finally(() => setAuthLoading(false));
+  }, []);
+
+  if (authLoading) return <main className="min-h-screen bg-slate-100 flex items-center justify-center text-xs text-slate-500">Checking screening session…</main>;
+  if (!authenticatedUser) return <LoginScreen onLogin={async (username, password) => {
+    const user = await scanApi.login(username, password);
+    setAuthenticatedUser(user);
+    return user;
+  }} />;
 
   const officerNameMap: Record<UserRole, string> = {
     LEGAL_METROLOGY_OFFICER: 'Enforcement reviewer',
@@ -137,7 +154,7 @@ export default function App() {
         activeRole={activeRole}
         onChangeRole={(role) => {
           setActiveRole(role);
-          showNotification(`Active role switched to: ${officerNameMap[role]}`);
+          showNotification(`Display role changed to: ${officerNameMap[role]}. Server authorization remains ${authenticatedUser.role}.`);
         }}
         caseCount={cases.length}
       />

@@ -5,7 +5,15 @@ export interface ScanHistoryEntry {
   readonly result: CanonicalScanResult;
 }
 
+export interface AuthenticatedUser {
+  readonly id: string;
+  readonly role: 'INSPECTOR';
+}
+
 export interface ScanApiClient {
+  login(username: string, password: string): Promise<AuthenticatedUser>;
+  getSession(): Promise<AuthenticatedUser>;
+  logout(): Promise<void>;
   createScan(input: { productName: string; sourceType: SourceType; ruleVersion: string; mode?: 'LIVE' | 'DEMO_FIXTURE' }): Promise<Scan>;
   uploadSourceImage(scanId: string, image: Blob, capturedAt?: string): Promise<{ image: EvidenceImage; scan: Scan }>;
   getScan(scanId: string): Promise<Scan>;
@@ -32,6 +40,27 @@ export class ScanApiError extends Error {
 
 export function createScanApiClient(baseUrl = ''): ScanApiClient {
   return {
+    async login(username, password) {
+      const response = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const payload = await parseResponse<{ user: AuthenticatedUser }>(response);
+      return payload.user;
+    },
+
+    async getSession() {
+      const response = await fetch(`${baseUrl}/auth/session`);
+      const payload = await parseResponse<{ user: AuthenticatedUser }>(response);
+      return payload.user;
+    },
+
+    async logout() {
+      const response = await fetch(`${baseUrl}/auth/logout`, { method: 'POST' });
+      if (!response.ok) await parseResponse<unknown>(response);
+    },
+
     async createScan(input) {
       const response = await fetch(`${baseUrl}/scans`, {
         method: 'POST',
