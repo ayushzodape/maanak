@@ -14,7 +14,10 @@ import { EnforcementDashboard } from './components/EnforcementDashboard';
 import { InspectorOverrideModal } from './components/InspectorOverrideModal';
 import { CustomScanModal } from './components/CustomScanModal';
 import { ScanResultScreen } from './components/ScanResultScreen';
+import { ScanHistoryScreen } from './components/ScanHistoryScreen';
 import { CanonicalScanResult, Scan } from './domain';
+import { createScanApiClient } from './services/scanApi';
+import { ScanHistoryEntry } from './services/scanApi';
 import { INITIAL_CASES } from './data/sampleCases';
 import { PackageEvidence, DeclarationAuditItem, UserRole, ComplianceStatus } from './types';
 
@@ -22,7 +25,7 @@ export default function App() {
   // Master state
   const [cases, setCases] = useState<PackageEvidence[]>(INITIAL_CASES);
   const [currentCase, setCurrentCase] = useState<PackageEvidence>(INITIAL_CASES[0]);
-  const [currentTab, setCurrentTab] = useState<'home' | 'workbench' | 'repository' | 'dashboard'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'workbench' | 'repository' | 'dashboard'>('home');
   const [activeRole, setActiveRole] = useState<UserRole>('LEGAL_METROLOGY_OFFICER');
 
   // Modal triggers
@@ -31,6 +34,7 @@ export default function App() {
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [resultScan, setResultScan] = useState<Scan | null>(null);
   const [canonicalResult, setCanonicalResult] = useState<CanonicalScanResult | null>(null);
+  const scanApi = createScanApiClient();
 
   const officerNameMap: Record<UserRole, string> = {
     LEGAL_METROLOGY_OFFICER: 'Enforcement reviewer',
@@ -50,6 +54,11 @@ export default function App() {
     setCanonicalResult(result);
     setIsCustomScanOpen(false);
     showNotification(`Canonical screening result ready for "${scan.productName}".`);
+  };
+
+  const handleOpenHistory = (entry: ScanHistoryEntry) => {
+    setResultScan(entry.scan);
+    setCanonicalResult(entry.result);
   };
 
   // Save a reviewer action against a demo fixture only.
@@ -141,8 +150,9 @@ export default function App() {
           onBack={() => { setResultScan(null); setCanonicalResult(null); }}
           onRetry={() => { setResultScan(null); setCanonicalResult(null); setIsCustomScanOpen(true); }}
         /> : <>
-        {currentTab !== 'home' && <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4"><div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900"><strong>DEMO FIXTURE MODE:</strong> this legacy surface uses preloaded synthetic case data. It is not live scan evidence or live enforcement data.</div></div>}
+        {(currentTab === 'workbench' || currentTab === 'repository' || currentTab === 'dashboard') && <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4"><div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900"><strong>DEMO FIXTURE MODE:</strong> this legacy surface uses preloaded synthetic case data. It is not live scan evidence or live enforcement data.</div></div>}
         {currentTab === 'home' && <HomeScreen caseCount={cases.length} onStartScan={() => setIsCustomScanOpen(true)} />}
+        {currentTab === 'history' && <ScanHistoryScreen onLoad={(filters) => scanApi.listHistory(filters)} onOpen={handleOpenHistory} />}
         {currentTab === 'workbench' && (
           <InspectionWorkbench
             currentCase={currentCase}

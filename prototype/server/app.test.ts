@@ -175,3 +175,42 @@ test('does not allow a demo adapter to serve a LIVE scan', async () => {
     assert.equal(persisted.observations.length, 0);
   }, app);
 });
+
+test('persists a canonical result and exposes it through filtered history', async () => {
+  await withServer(async (baseUrl) => {
+    const createResponse = await fetch(`${baseUrl}/scans`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ productName: 'History commodity', sourceType: 'PHYSICAL_PHOTO', ruleVersion: 'verified-test-ruleset' }),
+    });
+    const scan = await createResponse.json() as { id: string };
+    const generatedAt = '2026-09-06T12:00:00.000Z';
+    const saveResponse = await fetch(`${baseUrl}/scans/${scan.id}/result`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        scanId: scan.id,
+        overallResult: 'UNCERTAIN',
+        evaluations: [{
+          id: 'evaluation-history', ruleId: 'verified-test-rule', ruleVersion: 'verified-test-ruleset',
+          observationId: null, result: 'UNCERTAIN', observationConfidence: null,
+          reason: 'Evidence is insufficient for this test scan.', evidence: null, evaluatedAt: generatedAt,
+        }],
+        generatedAt,
+        source: 'DETERMINISTIC_RULE_ENGINE',
+      }),
+    });
+    assert.equal(saveResponse.status, 201);
+    const persistedScan = await (await fetch(`${baseUrl}/scans/${scan.id}`)).json() as { processing: { lifecycle: string }; evaluations: unknown[] };
+    assert.equal(persistedScan.processing.lifecycle, 'COMPLETE');
+    assert.equal(persistedScan.evaluations.length, 1);
+
+    const historyResponse = await fetch(`${baseUrl}/scans?productName=history&result=UNCERTAIN&from=2026-09-06T00:00:00.000Z&to=2026-09-07T00:00:00.000Z`);
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json() as { items: { scan: { id: string }; result: { scanId: string; overallResult: string } }[] };
+    assert.equal(history.items.length, 1);
+    assert.equal(history.items[0].scan.id, scan.id);
+    assert.equal(history.items[0].result.scanId, scan.id);
+    assert.equal(history.items[0].result.overallResult, 'UNCERTAIN');
+  });
+});

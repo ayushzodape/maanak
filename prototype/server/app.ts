@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
-import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType } from '../src/domain';
+import { createCanonicalScanResult, createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult } from '../src/domain';
 import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
-import { InMemoryScanRepository, ScanRepository, sha256 } from './repository';
+import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256 } from './repository';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -127,6 +127,50 @@ export function createApp(
     res.status(200).json(scan);
   });
 
+  app.get('/scans', (req, res, next) => {
+    try {
+      const query: ScanHistoryQuery = {
+        productName: optionalQueryString(req.query.productName, 'productName'),
+        result: optionalResult(req.query.result),
+        from: optionalDate(req.query.from, 'from'),
+        to: optionalDate(req.query.to, 'to'),
+      };
+      const items = repository.listCompleted(query);
+      res.status(200).json({ items, total: items.length });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/scans/:id/result', (req, res, next) => {
+    try {
+      const scan = repository.getById(req.params.id);
+      if (!scan) {
+        res.status(404).json(apiError('SCAN_NOT_FOUND', 'scan was not found'));
+        return;
+      }
+      const result = createCanonicalScanResult(req.body);
+      if (result.scanId !== scan.id) {
+        res.status(400).json(apiError('RESULT_SCAN_MISMATCH', 'canonical result does not belong to scan'));
+        return;
+      }
+      const completedScan = repository.saveCanonicalResult(scan.id, result);
+      res.status(201).json({ scan: completedScan, result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/scans/:id/result', (req, res) => {
+    const scan = repository.getById(req.params.id);
+    const result = repository.getCanonicalResult(req.params.id);
+    if (!scan || !result) {
+      res.status(404).json(apiError('RESULT_NOT_FOUND', 'completed canonical scan result was not found'));
+      return;
+    }
+    res.status(200).json(result);
+  });
+
   app.get('/scans/:id/images/:imageId', (req, res) => {
     const scan = repository.getById(req.params.id);
     const image = scan?.images.find((candidate) => candidate.id === req.params.imageId);
@@ -178,6 +222,25 @@ function requiredScanMode(value: unknown): ScanMode {
     throw new DomainValidationError('mode must be LIVE or DEMO_FIXTURE');
   }
   return value;
+}
+
+function optionalQueryString(value: unknown, fieldName: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.trim().length === 0) throw new DomainValidationError(`${fieldName} must be a non-empty string`);
+  return value.trim();
+}
+
+function optionalDate(value: unknown, fieldName: string): string | undefined {
+  const parsed = optionalQueryString(value, fieldName);
+  if (parsed && Number.isNaN(Date.parse(parsed))) throw new DomainValidationError(`${fieldName} must be a valid ISO date-time`);
+  return parsed;
+}
+
+function optionalResult(value: unknown): ComplianceResult | undefined {
+  const parsed = optionalQueryString(value, 'result');
+  if (parsed === undefined) return undefined;
+  if (!COMPLIANCE_RESULTS.includes(parsed as ComplianceResult)) throw new DomainValidationError('result must be a canonical compliance result');
+  return parsed as ComplianceResult;
 }
 
 function apiError(code: string, message: string): ApiErrorBody {

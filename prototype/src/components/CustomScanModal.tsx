@@ -88,7 +88,8 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
         uploaded.scan.observations,
         CURRENT_RULE_DEFINITIONS,
       );
-      onScanCreated?.(uploaded.scan, canonicalResult);
+      const persisted = await scanApi.saveResult(uploaded.scan.id, canonicalResult);
+      onScanCreated?.(persisted.scan, persisted.result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed. Please retry.';
       setFlow((current) => ({ ...current, status: 'ERROR', errorMessage: message }));

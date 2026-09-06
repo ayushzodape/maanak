@@ -6,12 +6,12 @@
  */
 
 import React from 'react';
-import { Home, ShieldCheck, Scale, Database, BarChart3, UserCheck } from 'lucide-react';
+import { Home, ShieldCheck, Scale, Database, BarChart3, UserCheck, History } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface HeaderProps {
-  currentTab: 'home' | 'workbench' | 'repository' | 'dashboard';
-  onSelectTab: (tab: 'home' | 'workbench' | 'repository' | 'dashboard') => void;
+  currentTab: 'home' | 'history' | 'workbench' | 'repository' | 'dashboard';
+  onSelectTab: (tab: 'home' | 'history' | 'workbench' | 'repository' | 'dashboard') => void;
   activeRole: UserRole;
   onChangeRole: (role: UserRole) => void;
   caseCount: number;
@@ -104,6 +104,16 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <nav className="flex items-center justify-between overflow-x-auto py-1.5 no-scrollbar">
           <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={() => onSelectTab('history')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                currentTab === 'history' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Scan History</span>
+            </button>
+
             <button
               onClick={() => onSelectTab('home')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
