@@ -9,6 +9,7 @@ import {
   transitionScanEntry,
   validateImageFile,
 } from '../scan-flow/scan-flow';
+import { processImageForUpload } from '../utils/image-processor';
 
 interface CustomScanModalProps {
   onClose: () => void;
@@ -77,13 +78,18 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
     try {
       cancelledRef.current = false;
       update({ type: 'UPLOAD_STARTED' });
+
+      // Pre-process image (resize high-res camera photos & convert to standard JPEG)
+      const fileToUpload = await processImageForUpload(selectedFile);
+      if (cancelledRef.current) return;
+
       const createdScan = scan || await scanApi.createScan({
         productName: flow.productName.trim(),
         sourceType: flow.sourceType,
         ruleVersion: RULESET_VERSION,
       });
       setScan(createdScan);
-      const uploaded = await scanApi.uploadSourceImage(createdScan.id, selectedFile);
+      const uploaded = await scanApi.uploadSourceImage(createdScan.id, fileToUpload);
       if (cancelledRef.current) return;
       setScan(uploaded.scan);
       update({ type: 'UPLOAD_SUCCEEDED', scanId: uploaded.scan.id });

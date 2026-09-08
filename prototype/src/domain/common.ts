@@ -49,6 +49,9 @@ export function assertBoundingBox(box: BoundingBox): void {
   if (box.width === 0 || box.height === 0) {
     throw new DomainValidationError('boundingBox width and height must be greater than 0');
   }
+  if (box.x + box.width > 1 || box.y + box.height > 1) {
+    throw new DomainValidationError('boundingBox must not extend beyond normalized image boundaries (x+width and y+height must be <= 1)');
+  }
 }
 
 export function assertEvidenceReference(reference: EvidenceReference | null, required: boolean): void {

@@ -50,6 +50,9 @@ export function createObservation(input: ObservationInput): Observation {
   if (hasLegalResultKey(input)) {
     throw new DomainValidationError('observations cannot contain a legal compliance result');
   }
+  if (input.status === 'OBSERVED' && (input.value === null || input.value === undefined || (typeof input.value === 'string' && input.value.trim() === ''))) {
+    throw new DomainValidationError('observations with OBSERVED status must carry a non-null, non-empty value');
+  }
 
   assertEvidenceReference(input.evidence, input.status === 'OBSERVED');
   if (input.unit !== undefined) {

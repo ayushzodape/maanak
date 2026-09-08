@@ -30,13 +30,16 @@ function resultForObservation(observation: Observation | undefined, rule: Rule) 
       return { result: 'NOT_MEASURABLE' as const, reason: `${rule.title} cannot be reliably determined from the available evidence.` };
     case 'UNCERTAIN':
     case 'NOT_VISIBLE':
+      if (observation.extractionMethod === 'SYSTEM_CONFLICT_RESOLUTION') {
+        return { result: 'UNCERTAIN' as const, reason: `Conflicting values observed for ${rule.title} across multiple images.` };
+      }
       return { result: 'UNCERTAIN' as const, reason: `${rule.title} cannot be determined with the available observation.` };
   }
 }
 
 function evaluateRule7(observations: readonly Observation[], rule: Rule): { result: 'PASS' | 'FAIL' | 'UNCERTAIN' | 'NOT_APPLICABLE' | 'NOT_MEASURABLE'; reason: string; observation?: Observation } {
   if (rule.logic.kind !== 'CHARACTER_HEIGHT_AREA') throw new Error('invalid Rule 7 logic');
-  const get = (field: string) => observations.find((item) => item.field === field);
+  const get = (field: string) => selectBestObservation(observations.filter((item) => item.field === field));
   const scope = get(rule.logic.fields.packageScope);
   if (scope?.status === 'UNCERTAIN' || scope?.status === 'NOT_VISIBLE') return { result: 'UNCERTAIN', reason: 'Rule 7 applicability cannot be determined from the available evidence.', observation: scope };
   if (scope?.value === false || scope?.value === 'OUT_OF_SCOPE') return { result: 'NOT_APPLICABLE', reason: 'The package is outside the supplied Rule 7 scope.', observation: scope };
@@ -55,12 +58,56 @@ function evaluateRule7(observations: readonly Observation[], rule: Rule): { resu
     : { result: 'FAIL', reason: `Observed character dimensions do not meet the Rule 7 Table-I height or Rule 7(3) width threshold.`, observation: height };
 }
 
+const STATUS_PRIORITY: Record<string, number> = {
+  OBSERVED: 5,
+  UNCERTAIN: 4,
+  NOT_MEASURABLE: 3,
+  NOT_VISIBLE: 2,
+  NOT_DETECTED: 1,
+};
+
+function selectBestObservation(matching: readonly Observation[]): Observation | undefined {
+  if (matching.length === 0) return undefined;
+  
+  const sorted = [...matching].sort((a, b) => {
+    const priorityDiff = (STATUS_PRIORITY[b.status] ?? 0) - (STATUS_PRIORITY[a.status] ?? 0);
+    if (priorityDiff !== 0) return priorityDiff;
+    const confDiff = (b.confidence ?? 0) - (a.confidence ?? 0);
+    if (confDiff !== 0) return confDiff;
+    const aEvidence = a.evidence ? 1 : 0;
+    const bEvidence = b.evidence ? 1 : 0;
+    return bEvidence - aEvidence;
+  });
+
+  const best = sorted[0];
+
+  if (best.status === 'OBSERVED') {
+    const observedItems = matching.filter(o => o.status === 'OBSERVED');
+    const uniqueValues = new Set(observedItems.map(o => String(o.value).trim().toLowerCase()));
+    
+    if (uniqueValues.size > 1) {
+      return {
+        id: `conflict-${best.id}`,
+        field: best.field,
+        value: null,
+        confidence: 0,
+        status: 'UNCERTAIN',
+        evidence: null,
+        extractionMethod: 'SYSTEM_CONFLICT_RESOLUTION',
+        observedAt: new Date().toISOString()
+      };
+    }
+  }
+
+  return best;
+}
+
 function evaluateRule(observations: readonly Observation[], rule: Rule): Evaluation {
   const field = rule.logic.kind === 'DECLARATION_PRESENCE' || rule.logic.kind === 'BLOCKED'
     ? rule.logic.field ?? null
     : null;
   const matching = field ? observations.filter((observation) => observation.field === field) : [];
-  const observation = matching[0];
+  const observation = selectBestObservation(matching);
 
   const outcome = rule.logic.kind === 'CHARACTER_HEIGHT_AREA'
     ? evaluateRule7(observations, rule)

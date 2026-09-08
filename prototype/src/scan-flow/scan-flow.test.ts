@@ -20,9 +20,9 @@ test('requires source type, product name, and image before submission', () => {
 
 test('validates supported image types and size', () => {
   assert.equal(validateImageFile({ type: 'image/jpeg', size: 100 }), null);
-  assert.match(validateImageFile({ type: 'text/plain', size: 100 }) || '', /JPEG/);
+  assert.match(validateImageFile({ type: 'text/plain', size: 100 }) || '', /valid product image/);
   assert.match(validateImageFile({ type: 'image/png', size: 0 }) || '', /empty/);
-  assert.match(validateImageFile({ type: 'image/png', size: 10 * 1024 * 1024 + 1 }) || '', /10 MB/);
+  assert.match(validateImageFile({ type: 'image/png', size: 30 * 1024 * 1024 + 1 }) || '', /30 MB/);
 });
 
 test('supports upload failure and retry', () => {

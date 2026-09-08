@@ -69,6 +69,17 @@ test('requires evidence for an observed observation', () => {
   );
 });
 
+test('rejects OBSERVED status with null or empty value', () => {
+  assert.throws(
+    () => createObservation({ ...validObservation(), value: null }),
+    DomainValidationError,
+  );
+  assert.throws(
+    () => createObservation({ ...validObservation(), value: '   ' }),
+    DomainValidationError,
+  );
+});
+
 test('rejects invalid confidence and bounding boxes', () => {
   assert.throws(
     () => createObservation({ ...validObservation(), confidence: 1.1 }),

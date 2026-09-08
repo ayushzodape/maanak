@@ -2,8 +2,10 @@ import { GoogleGenAI } from '@google/genai';
 import { EvidenceImage, Observation, ObservationStatus, createObservation } from '../domain';
 import { ExtractionAdapter, ExtractionError } from './extraction-adapter';
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const FALLBACK_MODELS = Array.from(new Set([GEMINI_MODEL, 'gemini-3.6-flash']));
 const DEFAULT_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 3;
 const EXTRACTION_METHOD = 'GEMINI_VISION';
 const OBSERVATION_FIELDS = new Set([
   'manufacturer',
@@ -60,8 +62,10 @@ const RESPONSE_SCHEMA = {
 };
 
 const EXTRACTION_INSTRUCTIONS = [
-  'Inspect the supplied packaged-commodity image and return only observable label evidence.',
+  'Inspect the supplied packaged-commodity image carefully and return observable label evidence.',
   'Use only these field names: manufacturer, generic_name, net_quantity, date_mfg, mrp, consumer_care, other_label_text, principal_display_panel_area_cm2, character_height_mm, character_width_mm, container_marking_method, package_scope.',
+  'For consumer_care, look for any customer care phone number, email address, or physical address.',
+  'If a printed label header (such as M.R.P, MFD, Use By, Batch No) is present on the packaging but the value after the label header is blank, unprinted, missing, or empty, set status to NOT_DETECTED or NOT_VISIBLE and value to null.',
   'If information is not visible, do not guess.',
   'If text is unreadable, report it as UNCERTAIN or NOT_DETECTED according to the observation model.',
   'Do not infer hidden declarations. Do not invent measurements.',
@@ -71,6 +75,8 @@ const EXTRACTION_INSTRUCTIONS = [
   'For package_scope, report IN_SCOPE, OUT_OF_SCOPE, or UNCERTAIN only when the image and supplied context support it; do not infer exemptions from product appearance alone.',
   'Return one observation for each requested field that is visible, not visible, not detected, or not measurable.',
   'The confidence value is confidence in the observation only, from 0 to 1.',
+  'Every OBSERVED field must include a bounding box indicating where the evidence is located.',
+  'If an OBSERVED field applies to the entire package (e.g. container_marking_method, package_scope), use a full-image bounding box {x: 0, y: 0, width: 1, height: 1}.',
   'Bounding boxes must be normalized to the range 0 to 1 relative to the supplied image.',
 ].join(' ');
 
@@ -131,34 +137,56 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
       throw new ExtractionError('source image bytes are unavailable for Gemini extraction');
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const response = await this.client.generateContent({
-        model: GEMINI_MODEL,
-        contents: [{
-          role: 'user',
-          parts: [
-            { text: EXTRACTION_INSTRUCTIONS },
-            { inlineData: { mimeType: image.mimeType, data: Buffer.from(imageBytes).toString('base64') } },
-          ],
-        }],
-        config: {
-          systemInstruction: 'You are an evidence extraction component. You do not decide compliance.',
-          responseMimeType: 'application/json',
-          responseJsonSchema: RESPONSE_SCHEMA,
-          temperature: 0,
-          abortSignal: controller.signal,
-        },
-      });
-      return this.convertResponse(response.text, image);
-    } catch (error) {
-      if (error instanceof ExtractionError) throw error;
-      if (controller.signal.aborted) throw new ExtractionError('Gemini extraction provider timed out');
-      throw new ExtractionError(classifyProviderFailure(error));
-    } finally {
-      clearTimeout(timeout);
+    let lastError: unknown;
+    const base64Data = Buffer.from(imageBytes).toString('base64');
+
+    // Try models in fallback order and retry transient 503/429 errors
+    for (const targetModel of FALLBACK_MODELS) {
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+        try {
+          const response = await this.client.generateContent({
+            model: targetModel,
+            contents: [{
+              role: 'user',
+              parts: [
+                { text: EXTRACTION_INSTRUCTIONS },
+                { inlineData: { mimeType: image.mimeType, data: base64Data } },
+              ],
+            }],
+            config: {
+              systemInstruction: 'You are an evidence extraction component. You do not decide compliance.',
+              responseMimeType: 'application/json',
+              responseJsonSchema: RESPONSE_SCHEMA,
+              temperature: 0,
+              abortSignal: controller.signal,
+            },
+          });
+          return this.convertResponse(response.text, image);
+        } catch (error) {
+          lastError = error;
+          if (error instanceof ExtractionError) throw error;
+          if (controller.signal.aborted) {
+            lastError = new ExtractionError('Gemini extraction provider timed out');
+            break;
+          }
+          const isTransient = isTransientError(error);
+          if (isTransient && attempt < MAX_RETRIES) {
+            // Backoff before retry
+            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+            continue;
+          }
+          // If model is 404 or persistent error, break loop to try next fallback model
+          break;
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
     }
+
+    const message = classifyProviderFailure(lastError);
+    throw new ExtractionError(message, { cause: lastError });
   }
 
   private convertResponse(responseText: string | undefined, image: EvidenceImage): Observation[] {
@@ -186,7 +214,8 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
     if (!isRecord(candidate) || typeof candidate.field !== 'string' || !OBSERVATION_FIELDS.has(candidate.field)) {
       throw new ExtractionError('Gemini extraction returned an unsupported observation field');
     }
-    if (!OBSERVATION_STATUSES.includes(candidate.status as ObservationStatus)) {
+    let status = candidate.status as ObservationStatus;
+    if (!OBSERVATION_STATUSES.includes(status)) {
       throw new ExtractionError('Gemini extraction returned an unsupported observation status');
     }
     if (typeof candidate.confidence !== 'number' || candidate.confidence < 0 || candidate.confidence > 1) {
@@ -199,16 +228,41 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
       throw new ExtractionError('Gemini extraction returned an invalid observation unit');
     }
 
-    const boundingBox = candidate.boundingBox === null || candidate.boundingBox === undefined
+    let value = candidate.value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed || ['n/a', 'na', 'none', 'null', 'nil', 'undefined', 'unprinted', 'blank'].includes(trimmed.toLowerCase())) {
+        value = null;
+      } else {
+        value = trimmed;
+      }
+    }
+
+    // A null value cannot carry OBSERVED status
+    if (value === null && status === 'OBSERVED') {
+      status = 'NOT_DETECTED';
+    }
+
+    let boundingBox = candidate.boundingBox === null || candidate.boundingBox === undefined
       ? undefined
       : parseBoundingBox(candidate.boundingBox);
+
+    // Strip hallucinated bounding boxes for unobserved fields
+    if (status !== 'OBSERVED') {
+      boundingBox = undefined;
+    }
+
+    // Ensure OBSERVED fields always have a bounding box (fallback to full image)
+    if (status === 'OBSERVED' && !boundingBox) {
+      boundingBox = { x: 0, y: 0, width: 1, height: 1 };
+    }
     return createObservation({
       id: `gemini-observation-${index + 1}`,
       field: candidate.field,
-      value: candidate.value,
+      value,
       ...(candidate.unit ? { unit: candidate.unit } : {}),
       confidence: candidate.confidence,
-      status: candidate.status as ObservationStatus,
+      status,
       evidence: {
         imageId: image.id,
         sourceImage: { storageKey: image.storageKey },
@@ -232,11 +286,25 @@ function parseBoundingBox(value: unknown): { x: number; y: number; width: number
   if (!isRecord(value) || !['x', 'y', 'width', 'height'].every((key) => typeof value[key] === 'number')) {
     throw new ExtractionError('Gemini extraction returned an invalid bounding box');
   }
-  const { x, y, width, height } = value as Record<'x' | 'y' | 'width' | 'height', number>;
-  if ([x, y, width, height].some((part) => !Number.isFinite(part)) || x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1 || y + height > 1) {
+  let { x, y, width, height } = value as Record<'x' | 'y' | 'width' | 'height', number>;
+  if ([x, y, width, height].some((part) => !Number.isFinite(part))) {
     throw new ExtractionError('Gemini extraction returned an invalid bounding box');
   }
-  return { x, y, width, height };
+  // Clamp slight floating-point overflow/underflow within [-0.05, 1.05]
+  if (x >= -0.05 && x <= 1.05) x = Math.max(0, Math.min(1, x));
+  if (y >= -0.05 && y <= 1.05) y = Math.max(0, Math.min(1, y));
+  if (width > 0 && width <= 1.05) width = Math.max(0.001, Math.min(1 - x, width));
+  if (height > 0 && height <= 1.05) height = Math.max(0.001, Math.min(1 - y, height));
+
+  if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1.001 || y + height > 1.001) {
+    throw new ExtractionError('Gemini extraction returned an invalid bounding box');
+  }
+  return {
+    x: Number(x.toFixed(4)),
+    y: Number(y.toFixed(4)),
+    width: Number(width.toFixed(4)),
+    height: Number(height.toFixed(4)),
+  };
 }
 
 function hasComplianceResult(value: Record<string, unknown>): boolean {
@@ -249,4 +317,9 @@ function classifyProviderFailure(error: unknown): string {
   if (status === 429) return 'Gemini extraction provider rate limit reached';
   if (status !== undefined && status >= 500) return 'Gemini extraction provider is unavailable';
   return 'Gemini extraction provider request failed';
+}
+
+function isTransientError(error: unknown): boolean {
+  const status = isRecord(error) && typeof error.status === 'number' ? error.status : undefined;
+  return status === 429 || status === 503 || status === 500 || status === 502 || status === 504;
 }

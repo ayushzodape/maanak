@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createEvidenceImage, createObservation } from '../domain';
-import { BLOCKED_RULE_7, CURRENT_RULE_DEFINITIONS, VERIFIED_RULE_DEFINITIONS } from './rule-definitions';
+import { BLOCKED_RULE_7, CURRENT_RULE_DEFINITIONS, RULE_7, VERIFIED_RULE_DEFINITIONS } from './rule-definitions';
 import { evaluateObservations, evaluateScan } from './evaluator';
 
 const now = '2026-09-06T10:00:00.000Z';
@@ -18,6 +18,26 @@ test('verified declaration rules deterministically pass observed evidence and pr
   assert.equal(result.result, 'PASS');
   assert.deepEqual(result.evidence, evidence);
   assert.equal(result.observationId, 'observation-mrp');
+});
+
+test('prioritizes OBSERVED observations when multiple observations exist for the same field across images', () => {
+  const rule = VERIFIED_RULE_DEFINITIONS.find(({ logic }) => logic.kind === 'DECLARATION_PRESENCE' && logic.field === 'mrp')!;
+  const obs1 = createObservation({ id: 'obs-mrp-1', field: 'mrp', value: null, confidence: 0, status: 'NOT_DETECTED', evidence: null, extractionMethod: 'TEST', observedAt: now });
+  const obs2 = createObservation({ id: 'obs-mrp-2', field: 'mrp', value: '185', confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'TEST', observedAt: now });
+
+  const result = evaluateObservations([obs1, obs2], [rule])[0];
+  assert.equal(result.result, 'PASS');
+  assert.equal(result.observationId, 'obs-mrp-2');
+});
+
+test('returns UNCERTAIN when multiple images yield conflicting OBSERVED facts', () => {
+  const rule = VERIFIED_RULE_DEFINITIONS.find(({ logic }) => logic.kind === 'DECLARATION_PRESENCE' && logic.field === 'mrp')!;
+  const obs1 = createObservation({ id: 'obs-mrp-1', field: 'mrp', value: '100', confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'TEST', observedAt: now });
+  const obs2 = createObservation({ id: 'obs-mrp-2', field: 'mrp', value: '200', confidence: 0.96, status: 'OBSERVED', evidence, extractionMethod: 'TEST', observedAt: now });
+
+  const result = evaluateObservations([obs1, obs2], [rule])[0];
+  assert.equal(result.result, 'UNCERTAIN');
+  assert.match(String(result.reason), /conflict/i);
 });
 
 test('each implemented declaration rule has deterministic missing, detected, and uncertain behavior', () => {
@@ -74,4 +94,92 @@ test('canonical result uses deterministic precedence and contains only evaluator
   const bundle = evaluateScan('scan-1', [observation('NOT_DETECTED')], [VERIFIED_RULE_DEFINITIONS.find(({ logic }) => logic.kind === 'DECLARATION_PRESENCE' && logic.field === 'mrp')!], now);
   assert.equal(bundle.canonicalResult.overallResult, 'FAIL');
   assert.equal(bundle.canonicalResult.source, 'DETERMINISTIC_RULE_ENGINE');
+});
+
+// ---- Rule 7 Live Threshold Tests ----
+
+function rule7Observations(area: number, height: number, width: number, method: string, scope: string | boolean = 'IN_SCOPE') {
+  return [
+    createObservation({ id: 'obs-area', field: 'principal_display_panel_area_cm2', value: area, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-height', field: 'character_height_mm', value: height, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-width', field: 'character_width_mm', value: width, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-method', field: 'container_marking_method', value: method, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-scope', field: 'package_scope', value: scope, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+  ];
+}
+
+test('Rule 7 tier 1: area < 50 cm² requires 1.0 mm standard, 1.5 mm blown', () => {
+  // Standard container at 30 cm² with 1.0 mm height passes
+  assert.equal(evaluateObservations(rule7Observations(30, 1.0, 0.5, 'NORMAL'), [RULE_7])[0].result, 'PASS');
+  // Standard container at 30 cm² with 0.9 mm height fails
+  assert.equal(evaluateObservations(rule7Observations(30, 0.9, 0.5, 'NORMAL'), [RULE_7])[0].result, 'FAIL');
+  // Blown container at 30 cm² requires 1.5 mm
+  assert.equal(evaluateObservations(rule7Observations(30, 1.5, 0.6, 'BLOWN'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(30, 1.4, 0.6, 'BLOWN'), [RULE_7])[0].result, 'FAIL');
+});
+
+test('Rule 7 tier 2: 50 ≤ area < 100 cm² requires 1.5 mm standard, 3.0 mm blown', () => {
+  assert.equal(evaluateObservations(rule7Observations(75, 1.5, 0.6, 'NORMAL'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(75, 1.4, 0.6, 'NORMAL'), [RULE_7])[0].result, 'FAIL');
+  assert.equal(evaluateObservations(rule7Observations(75, 3.0, 1.1, 'MOULDED'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(75, 2.9, 1.1, 'MOULDED'), [RULE_7])[0].result, 'FAIL');
+});
+
+test('Rule 7 tier 3: 100 ≤ area < 500 cm² requires 2.5 mm standard, 4.0 mm blown', () => {
+  assert.equal(evaluateObservations(rule7Observations(250, 2.5, 1.0, 'NORMAL'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(250, 2.4, 1.0, 'NORMAL'), [RULE_7])[0].result, 'FAIL');
+  assert.equal(evaluateObservations(rule7Observations(250, 4.0, 1.5, 'EMBOSSED'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(250, 3.9, 1.5, 'EMBOSSED'), [RULE_7])[0].result, 'FAIL');
+});
+
+test('Rule 7 tier 4: 500 ≤ area < 2500 cm² requires 4.0 mm standard, 6.0 mm blown', () => {
+  assert.equal(evaluateObservations(rule7Observations(1000, 4.0, 1.5, 'NORMAL'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(1000, 3.9, 1.5, 'NORMAL'), [RULE_7])[0].result, 'FAIL');
+  assert.equal(evaluateObservations(rule7Observations(1000, 6.0, 2.1, 'FORMED'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(1000, 5.9, 2.1, 'FORMED'), [RULE_7])[0].result, 'FAIL');
+});
+
+test('Rule 7 tier 5: area ≥ 2500 cm² requires 6.0 mm for both standard and blown', () => {
+  assert.equal(evaluateObservations(rule7Observations(3000, 6.0, 2.1, 'NORMAL'), [RULE_7])[0].result, 'PASS');
+  assert.equal(evaluateObservations(rule7Observations(3000, 5.9, 2.1, 'NORMAL'), [RULE_7])[0].result, 'FAIL');
+  assert.equal(evaluateObservations(rule7Observations(5000, 6.0, 2.1, 'PERFORATED'), [RULE_7])[0].result, 'PASS');
+});
+
+test('Rule 7(3): character width must be ≥ height / 3', () => {
+  // Height 3.0 mm, width must be >= 1.0 mm. Width 0.9 fails.
+  assert.equal(evaluateObservations(rule7Observations(250, 3.0, 0.9, 'NORMAL'), [RULE_7])[0].result, 'FAIL');
+  // Width exactly 1.0 passes
+  assert.equal(evaluateObservations(rule7Observations(250, 3.0, 1.0, 'NORMAL'), [RULE_7])[0].result, 'PASS');
+});
+
+test('Rule 7 returns NOT_APPLICABLE when package scope is OUT_OF_SCOPE', () => {
+  assert.equal(evaluateObservations(rule7Observations(100, 2.5, 1.0, 'NORMAL', 'OUT_OF_SCOPE'), [RULE_7])[0].result, 'NOT_APPLICABLE');
+});
+
+test('Rule 7 properly uses multi-observation priority across fields', () => {
+  // Give an array of observations where the first one is NOT_DETECTED but a later one is OBSERVED
+  const areaNotDetected = createObservation({ id: 'obs-area-1', field: 'principal_display_panel_area_cm2', value: null, confidence: 0.95, status: 'NOT_DETECTED', evidence, extractionMethod: 'VISION', observedAt: now });
+  const areaObserved = createObservation({ id: 'obs-area-2', field: 'principal_display_panel_area_cm2', value: 250, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION', observedAt: now });
+  
+  const obs = [
+    areaNotDetected, // This should be ignored by selectBestObservation
+    areaObserved,    // This should be picked
+    createObservation({ id: 'obs-height', field: 'character_height_mm', value: 3.0, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION', observedAt: now }),
+    createObservation({ id: 'obs-width', field: 'character_width_mm', value: 1.0, confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION', observedAt: now }),
+    createObservation({ id: 'obs-method', field: 'container_marking_method', value: 'NORMAL', confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION', observedAt: now }),
+    createObservation({ id: 'obs-scope', field: 'package_scope', value: 'IN_SCOPE', confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION', observedAt: now }),
+  ];
+  
+  assert.equal(evaluateObservations(obs, [RULE_7])[0].result, 'PASS');
+});
+
+test('Rule 7 returns NOT_MEASURABLE when measurements are NOT_MEASURABLE', () => {
+  const obs = [
+    createObservation({ id: 'obs-area', field: 'principal_display_panel_area_cm2', value: null, confidence: 0.5, status: 'NOT_MEASURABLE', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-height', field: 'character_height_mm', value: null, confidence: 0.5, status: 'NOT_MEASURABLE', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-width', field: 'character_width_mm', value: null, confidence: 0.5, status: 'NOT_MEASURABLE', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-method', field: 'container_marking_method', value: null, confidence: 0.5, status: 'NOT_MEASURABLE', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+    createObservation({ id: 'obs-scope', field: 'package_scope', value: 'IN_SCOPE', confidence: 0.95, status: 'OBSERVED', evidence, extractionMethod: 'VISION_EXTRACTION', observedAt: now }),
+  ];
+  assert.equal(evaluateObservations(obs, [RULE_7])[0].result, 'NOT_MEASURABLE');
 });

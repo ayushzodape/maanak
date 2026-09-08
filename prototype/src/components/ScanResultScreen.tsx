@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon, Info, Ruler, ShieldAlert } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon, Info, Ruler, ShieldAlert, X } from 'lucide-react';
 import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
@@ -194,20 +194,94 @@ function EvidenceViewer({ scan, result, imageId, onClose }: { scan: Scan; result
   const image = scan.images.find((candidate) => candidate.id === imageId);
   const evidencePoints = collectEvidencePoints(result, imageId);
   const localizedPoints = evidencePoints.filter(({ evidence }) => evidence.boundingBox);
-  return <div className="fixed inset-0 z-50 bg-slate-950/75 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Source image evidence">
-    <div className="bg-white rounded-lg max-w-2xl w-full overflow-hidden shadow-2xl">
-      <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between"><div><h2 className="text-sm font-bold">Source image evidence</h2><p className="text-[10px] font-mono text-slate-400">{imageId}</p></div><button onClick={onClose} className="text-xs px-2 py-1 border border-slate-600 rounded">Close</button></div>
-      <div className="p-4">
-        {image && !imageLoadError ? <div className="relative w-full overflow-hidden rounded bg-slate-100" style={image.width && image.height ? { aspectRatio: `${image.width} / ${image.height}` } : undefined}>
-          <img src={`/scans/${encodeURIComponent(scan.id)}/images/${encodeURIComponent(imageId)}`} alt="Original uploaded source evidence" onError={() => setImageLoadError(true)} className="relative z-0 block h-auto w-full object-contain" />
-          {localizedPoints.map(({ evaluationId, evidence }) => {
-            const box = evidence.boundingBox!;
-            return <div key={evaluationId} className="absolute border-2 border-amber-400 bg-amber-300/20 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]" style={{ left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%` }} aria-label={`Highlighted evidence region for ${evaluationId}`} />;
-          })}
-        </div> : <div role="alert" className="p-6 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded">{image ? 'The source image could not be loaded. Check the network connection and retry.' : 'The source image is unavailable.'}</div>}
-        {imageLoadError ? <p className="mt-2 text-[10px] text-rose-700">Evidence display failed; no image region is being claimed.</p> : localizedPoints.length > 0 ? <p className="mt-2 text-[10px] text-slate-600">Amber outlines mark localized evidence from the observation.</p> : <p className="mt-2 text-[10px] text-amber-700">Localized evidence unavailable: this observation has no bounding box.</p>}
-        <p className="mt-1 text-[10px] text-slate-500 break-all">Storage reference: {image?.storageKey ?? 'not available'}</p>
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Source image evidence"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg max-w-3xl w-full overflow-hidden shadow-2xl border border-slate-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">
+          <div>
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-amber-400" /> Source image evidence
+            </h2>
+            <p className="text-[11px] font-mono text-slate-400 mt-0.5">{imageId}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium transition-colors"
+            aria-label="Close evidence viewer"
+          >
+            <X className="w-4 h-4" /> Close
+          </button>
+        </div>
+        <div className="p-5 space-y-3 max-h-[75vh] overflow-y-auto">
+          {image && !imageLoadError ? (
+            <div
+              className="relative w-full overflow-hidden rounded-md bg-slate-900/5 border border-slate-200 flex items-center justify-center min-h-[300px]"
+              style={image.width && image.height ? { aspectRatio: `${image.width} / ${image.height}` } : undefined}
+            >
+              <img
+                src={`/scans/${encodeURIComponent(scan.id)}/images/${encodeURIComponent(imageId)}`}
+                alt="Original uploaded source evidence"
+                onError={() => setImageLoadError(true)}
+                className="relative z-0 block h-auto w-full object-contain max-h-[60vh]"
+              />
+              {localizedPoints.map(({ evaluationId, evidence }) => {
+                const box = evidence.boundingBox!;
+                return (
+                  <div
+                    key={evaluationId}
+                    className="absolute border-2 border-amber-400 bg-amber-400/20 shadow-[0_0_0_1px_rgba(15,23,42,0.35)] rounded-sm pointer-events-none"
+                    style={{
+                      left: `${box.x * 100}%`,
+                      top: `${box.y * 100}%`,
+                      width: `${box.width * 100}%`,
+                      height: `${box.height * 100}%`,
+                    }}
+                    aria-label={`Highlighted evidence region for ${evaluationId}`}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div role="alert" className="p-6 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded">
+              {image ? 'The source image could not be loaded. Check the network connection and retry.' : 'The source image is unavailable.'}
+            </div>
+          )}
+          {imageLoadError ? (
+            <p className="text-[11px] text-rose-700">Evidence display failed; no image region is being claimed.</p>
+          ) : localizedPoints.length > 0 ? (
+            <p className="text-[11px] text-slate-600">Amber outlines mark localized evidence bounding boxes from AI observations.</p>
+          ) : (
+            <p className="text-[11px] text-amber-700">Localized evidence unavailable: this observation has no bounding box coordinates.</p>
+          )}
+          <p className="text-[11px] font-mono text-slate-500 break-all">Storage reference: {image?.storageKey ?? 'not available'}</p>
+        </div>
+        <div className="bg-slate-100 px-5 py-3 border-t border-slate-200 flex items-center justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded text-xs transition-colors"
+          >
+            Close Evidence Viewer
+          </button>
+        </div>
       </div>
     </div>
-  </div>;
+  );
 }

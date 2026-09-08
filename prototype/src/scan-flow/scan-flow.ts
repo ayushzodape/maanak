@@ -52,15 +52,17 @@ export const initialScanEntryState: ScanEntryState = {
   errorMessage: null,
 };
 
-export function validateImageFile(file: Pick<File, 'type' | 'size'>): string | null {
-  if (!SUPPORTED_SCAN_IMAGE_TYPES.includes(file.type as ScanImageType)) {
-    return 'Choose a JPEG, PNG, or WebP image.';
-  }
+export function validateImageFile(file: { type?: string; size: number; name?: string }): string | null {
   if (file.size <= 0) {
     return 'The selected image is empty.';
   }
-  if (file.size > MAX_SCAN_IMAGE_BYTES) {
-    return 'The selected image must be 10 MB or smaller.';
+  const isImageType = file.type?.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(file.name || '');
+  if (!isImageType) {
+    return 'Choose a valid product image (JPEG, PNG, WebP, or HEIC).';
+  }
+  // Client safety limit: raw uncompressed camera images up to 30 MB are accepted for client-side compression
+  if (file.size > 30 * 1024 * 1024) {
+    return 'The selected image must be smaller than 30 MB.';
   }
   return null;
 }

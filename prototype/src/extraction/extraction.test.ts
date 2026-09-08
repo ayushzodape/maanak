@@ -123,7 +123,7 @@ test('converts valid Gemini structured output into evidence-backed observations'
   assert.equal(observation.status, 'OBSERVED');
   assert.equal(observation.extractionMethod, 'GEMINI_VISION');
   assert.deepEqual(observation.evidence?.boundingBox, { x: 0.1, y: 0.2, width: 0.3, height: 0.1 });
-  assert.equal((request as { model: string }).model, 'gemini-2.5-flash');
+  assert.equal((request as { model: string }).model, 'gemini-3.6-flash');
   assert.equal((request as { config: { responseMimeType: string } }).config.responseMimeType, 'application/json');
   assert.match(JSON.stringify(request), /Do not infer legal compliance/);
   assert.match(JSON.stringify(request), /Do not return PASS or FAIL/);

@@ -7,7 +7,7 @@ import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256 } from
 import { AuthConfig, AuthenticatedUser, configuredAuthFromEnvironment, InMemorySessionStore, readSessionToken, SESSION_COOKIE, SessionStore } from './auth';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 interface CreateScanBody {
   productName?: unknown;

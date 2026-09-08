@@ -300,7 +300,10 @@ test('derives and persists the canonical result from server-owned observations a
     assert.equal(persistedScan.processing.lifecycle, 'COMPLETE');
     assert.equal(persistedScan.evaluations.length, 7);
 
-    const historyResponse = await fetch(`${baseUrl}/scans?productName=history&result=UNCERTAIN&from=2026-09-06T00:00:00.000Z&to=2026-09-07T00:00:00.000Z`);
+    const today = new Date();
+    const fromDate = new Date(today.getTime() - 86400000 * 2).toISOString();
+    const toDate = new Date(today.getTime() + 86400000 * 2).toISOString();
+    const historyResponse = await fetch(`${baseUrl}/scans?productName=history&result=UNCERTAIN&from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`);
     assert.equal(historyResponse.status, 200);
     const history = await historyResponse.json() as { items: { scan: { id: string }; result: { scanId: string; overallResult: string } }[] };
     assert.equal(history.items.length, 1);

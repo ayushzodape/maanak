@@ -128,7 +128,28 @@ export function renderPdfReport(report: ScreeningReportDocument): Uint8Array {
 }
 
 function escapePdfText(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)').replaceAll(/[^\x20-\x7E]/g, '?');
+  return transliterateForPdf(value).replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)').replaceAll(/[^\x20-\x7E]/g, '?');
+}
+
+/** Transliterate common non-ASCII characters to ASCII equivalents for PDF Type 1 Courier font. */
+function transliterateForPdf(value: string): string {
+  return value
+    .replaceAll('₹', 'Rs.')
+    .replaceAll('€', 'EUR')
+    .replaceAll('£', 'GBP')
+    .replaceAll('¥', 'JPY')
+    .replaceAll('°', 'deg')
+    .replaceAll('²', '2')
+    .replaceAll('³', '3')
+    .replaceAll('×', 'x')
+    .replaceAll('≤', '<=')
+    .replaceAll('≥', '>=')
+    .replaceAll('–', '-')
+    .replaceAll('—', '--')
+    .replaceAll('\u2018', "'")
+    .replaceAll('\u2019', "'")
+    .replaceAll('\u201C', '"')
+    .replaceAll('\u201D', '"');
 }
 
 export function renderHumanReadableReport(report: ScreeningReportDocument): string {

@@ -16,48 +16,67 @@ export interface Rule7Threshold {
   description: string;
 }
 
+/**
+ * @deprecated DO NOT USE for live evaluation. The canonical Rule 7 logic is in
+ * src/evaluation/evaluator.ts using verified thresholds from the DCA consolidated
+ * PDF (GSR 629(E)). This table exists only for legacy fixture display.
+ *
+ * AGENTS.md Rule 8: "An earlier research handoff contained an incorrect/fabricated
+ * Rule 7 table. DO NOT reintroduce that table."
+ */
 export const RULE_7_TABLE_I: Rule7Threshold[] = [
   {
     minAreaSqCm: 0,
     maxAreaSqCm: 50,
-    label: "A ≤ 50 cm²",
+    label: "A < 50 cm²",
     minHeightStandardMm: 1.0,
     minHeightBlowMouldedMm: 1.5,
-    description: "Small packages with principal display panel area not exceeding 50 square centimeters."
+    description: "Small packages with principal display panel area less than 50 square centimeters."
   },
   {
     minAreaSqCm: 50,
-    maxAreaSqCm: 200,
-    label: "50 < A ≤ 200 cm²",
-    minHeightStandardMm: 2.0,
+    maxAreaSqCm: 100,
+    label: "50 ≤ A < 100 cm²",
+    minHeightStandardMm: 1.5,
     minHeightBlowMouldedMm: 3.0,
-    description: "Medium packages with PDP area greater than 50 cm² up to 200 cm²."
+    description: "Packages with PDP area 50 cm² or more but less than 100 cm²."
   },
   {
-    minAreaSqCm: 200,
-    maxAreaSqCm: 1000,
-    label: "200 < A ≤ 1000 cm²",
+    minAreaSqCm: 100,
+    maxAreaSqCm: 500,
+    label: "100 ≤ A < 500 cm²",
+    minHeightStandardMm: 2.5,
+    minHeightBlowMouldedMm: 4.0,
+    description: "Packages with PDP area 100 cm² or more but less than 500 cm²."
+  },
+  {
+    minAreaSqCm: 500,
+    maxAreaSqCm: 2500,
+    label: "500 ≤ A < 2500 cm²",
     minHeightStandardMm: 4.0,
     minHeightBlowMouldedMm: 6.0,
-    description: "Standard retail family packs with PDP area greater than 200 cm² up to 1000 cm²."
+    description: "Packages with PDP area 500 cm² or more but less than 2500 cm²."
   },
   {
-    minAreaSqCm: 1000,
+    minAreaSqCm: 2500,
     maxAreaSqCm: 99999,
-    label: "A > 1000 cm²",
+    label: "A ≥ 2500 cm²",
     minHeightStandardMm: 6.0,
     minHeightBlowMouldedMm: 6.0,
-    description: "Bulk, large sacks, drums, or corrugated cartons exceeding 1000 cm²."
+    description: "Large packages with PDP area 2500 cm² or more."
   }
 ];
 
+/**
+ * @deprecated Use the canonical evaluateRule7() in src/evaluation/evaluator.ts instead.
+ */
 export function getRequiredNumeralHeight(pdpAreaSqCm: number, isBlowMoulded = false): number {
   for (const tier of RULE_7_TABLE_I) {
-    if (pdpAreaSqCm <= tier.maxAreaSqCm) {
+    if (pdpAreaSqCm < tier.maxAreaSqCm) {
       return isBlowMoulded ? tier.minHeightBlowMouldedMm : tier.minHeightStandardMm;
     }
   }
-  return isBlowMoulded ? 6.0 : 6.0;
+  return 6.0;
 }
 
 export const STATUTORY_CITATIONS = {

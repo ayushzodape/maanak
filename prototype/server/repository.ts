@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createScan, CanonicalScanResult, ComplianceResult, EvidenceImage, Observation, Scan } from '../src/domain';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface ScanHistoryQuery {
@@ -88,7 +88,7 @@ export class InMemoryScanRepository implements ScanRepository {
     }
     return this.save(createScan({
       ...scan,
-      observations: [...observations],
+      observations: [...scan.observations, ...observations],
       processing: {
         ...scan.processing,
         stage: 'EXTRACTING',
@@ -153,17 +153,18 @@ export class InMemoryScanRepository implements ScanRepository {
 interface PersistedRepositoryState {
   scans: Scan[];
   canonicalResults: CanonicalScanResult[];
-  imageBytes: Record<string, string>;
+  /** @deprecated Legacy field — images are now stored as separate files in the images/ directory. Present only in pre-migration data. */
+  imageBytes?: Record<string, string>;
 }
 
 /** Small file-backed repository for local development and the first demo deployment. */
 export class FileScanRepository implements ScanRepository {
   private readonly scans = new Map<string, Scan>();
-  private readonly imageBytes = new Map<string, Buffer>();
   private readonly canonicalResults = new Map<string, CanonicalScanResult>();
 
   constructor(private readonly directory: string) {
     mkdirSync(directory, { recursive: true });
+    mkdirSync(this.imagesDirectory(), { recursive: true });
     this.load();
   }
 
@@ -186,13 +187,23 @@ export class FileScanRepository implements ScanRepository {
   saveImage(scanId: string, image: EvidenceImage, bytes: Buffer): Scan {
     const scan = this.requireScan(scanId);
     if (scan.images.some((existing) => existing.id === image.id)) throw new Error(`image already exists: ${image.id}`);
-    this.imageBytes.set(this.imageKey(scanId, image.id), Buffer.from(bytes));
-    return this.save(createScan({ ...scan, images: [...scan.images, image], processing: { stage: 'UPLOADING', lifecycle: 'PROCESSING' }, timestamps: { ...scan.timestamps, updatedAt: image.createdAt } }));
+    
+    const tmpPath = `${this.imagePath(scanId, image.id)}.tmp`;
+    writeFileSync(tmpPath, bytes);
+    
+    try {
+      const updated = this.save(createScan({ ...scan, images: [...scan.images, image], processing: { stage: 'UPLOADING', lifecycle: 'PROCESSING' }, timestamps: { ...scan.timestamps, updatedAt: image.createdAt } }));
+      renameSync(tmpPath, this.imagePath(scanId, image.id));
+      return updated;
+    } catch (error) {
+      if (existsSync(tmpPath)) unlinkSync(tmpPath);
+      throw error;
+    }
   }
 
   saveObservations(scanId: string, observations: readonly Observation[]): Scan {
     const scan = this.requireScan(scanId);
-    return this.save(createScan({ ...scan, observations: [...observations], processing: { stage: 'EXTRACTING', lifecycle: 'PROCESSING' }, timestamps: { ...scan.timestamps, updatedAt: new Date().toISOString() } }));
+    return this.save(createScan({ ...scan, observations: [...scan.observations, ...observations], processing: { stage: 'EXTRACTING', lifecycle: 'PROCESSING' }, timestamps: { ...scan.timestamps, updatedAt: new Date().toISOString() } }));
   }
 
   markError(scanId: string, message: string): Scan {
@@ -201,8 +212,9 @@ export class FileScanRepository implements ScanRepository {
   }
 
   getImageBytes(scanId: string, imageId: string): Buffer | undefined {
-    const bytes = this.imageBytes.get(this.imageKey(scanId, imageId));
-    return bytes ? Buffer.from(bytes) : undefined;
+    const imagePath = this.imagePath(scanId, imageId);
+    if (!existsSync(imagePath)) return undefined;
+    return readFileSync(imagePath);
   }
 
   saveCanonicalResult(scanId: string, result: CanonicalScanResult): Scan {
@@ -223,13 +235,18 @@ export class FileScanRepository implements ScanRepository {
   }
 
   private requireScan(id: string): Scan { const scan = this.getById(id); if (!scan) throw new Error(`scan does not exist: ${id}`); return scan; }
-  private imageKey(scanId: string, imageId: string): string { return `${scanId}:${imageId}`; }
   private statePath(): string { return join(this.directory, 'scans.json'); }
+  private imagesDirectory(): string { return join(this.directory, 'images'); }
+  private imagePath(scanId: string, imageId: string): string { return join(this.imagesDirectory(), `${scanId}_${imageId}.bin`); }
+
+  private persistImageBytes(scanId: string, imageId: string, bytes: Buffer): void {
+    writeFileSync(this.imagePath(scanId, imageId), bytes);
+  }
+
   private persist(): void {
     const state: PersistedRepositoryState = {
       scans: [...this.scans.values()],
       canonicalResults: [...this.canonicalResults.values()],
-      imageBytes: Object.fromEntries([...this.imageBytes.entries()].map(([key, bytes]) => [key, bytes.toString('base64')])),
     };
     const tempPath = `${this.statePath()}.tmp`;
     writeFileSync(tempPath, JSON.stringify(state), 'utf8');
@@ -240,7 +257,17 @@ export class FileScanRepository implements ScanRepository {
     const state = JSON.parse(readFileSync(this.statePath(), 'utf8')) as PersistedRepositoryState;
     for (const scan of state.scans || []) this.scans.set(scan.id, createScan(scan));
     for (const result of state.canonicalResults || []) this.canonicalResults.set(result.scanId, result);
-    for (const [key, encoded] of Object.entries(state.imageBytes || {})) this.imageBytes.set(key, Buffer.from(encoded, 'base64'));
+    // Backward compatibility: migrate legacy base64 image data to separate files
+    if (state.imageBytes) {
+      for (const [key, encoded] of Object.entries(state.imageBytes)) {
+        const [scanId, imageId] = key.split(':');
+        if (scanId && imageId) {
+          this.persistImageBytes(scanId, imageId, Buffer.from(encoded, 'base64'));
+        }
+      }
+      // Re-persist without the imageBytes field to complete migration
+      this.persist();
+    }
   }
 }
 
