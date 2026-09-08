@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express, { NextFunction, Request, Response } from 'express';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult } from '../src/domain';
 import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
 import { CURRENT_RULE_DEFINITIONS, evaluateScan, RULESET_VERSION } from '../src/evaluation';
@@ -227,6 +232,18 @@ export function createApp(
       return;
     }
     res.type(image.mimeType).send(bytes);
+  });
+
+  // Serve static files from the frontend build directory
+  const distPath = path.join(__dirname, '../dist');
+  app.use(express.static(distPath));
+  
+  // SPA Fallback for any routes that aren't API endpoints
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/scans') || req.path.startsWith('/auth')) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
