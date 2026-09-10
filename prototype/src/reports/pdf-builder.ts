@@ -396,7 +396,7 @@ export function renderAestheticPdfReport(report: ScreeningReportDocument): Uint8
   // ==========================================
   // METADATA CARD (2-Column Grid)
   // ==========================================
-  const metaCardHeight = 62;
+  const metaCardHeight = 76;
   canvas.save();
   canvas.setFillColor(PALETTE.SLATE_BG);
   canvas.setStrokeColor(PALETTE.SLATE_BORDER);
@@ -405,30 +405,47 @@ export function renderAestheticPdfReport(report: ScreeningReportDocument): Uint8
 
   const col1X = MARGIN_X + 16;
   const col2X = MARGIN_X + CONTENT_WIDTH / 2 + 10;
-  const row1Y = curY - 16;
-  const row2Y = curY - 32;
-  const row3Y = curY - 48;
+  const row1Y = curY - 15;
+  const row2Y = curY - 29;
+  const row3Y = curY - 43;
+  const row4Y = curY - 57;
 
   // Row 1
   canvas.text('Product Name:', col1X, row1Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
-  canvas.text(report.scan.productName.slice(0, 42), col1X + 72, row1Y, { font: 'HELVETICA_BOLD', size: 8.5, color: PALETTE.TEXT_DARK });
+  canvas.text(report.scan.productName.slice(0, 38), col1X + 72, row1Y, { font: 'HELVETICA_BOLD', size: 8.5, color: PALETTE.TEXT_DARK });
 
   canvas.text('Generated At:', col2X, row1Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
   canvas.text(report.generatedAt.replace('T', ' ').slice(0, 19) + ' UTC', col2X + 68, row1Y, { font: 'HELVETICA', size: 8, color: PALETTE.TEXT_DARK });
 
   // Row 2
-  canvas.text('Scan ID:', col1X, row2Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
-  canvas.text(report.scan.id, col1X + 72, row2Y, { font: 'COURIER', size: 8, color: PALETTE.TEXT_DARK });
+  const categoryLabels: Record<string, string> = {
+    GENERAL_RETAIL: 'General Retail',
+    FOOD_BEVERAGE: 'Food & Beverages',
+    PHARMACEUTICAL: 'Pharmaceuticals / Drugs',
+    COSMETIC: 'Cosmetics & Personal Care',
+    SMALL_SACHET: 'Small Sachet (<= 10g / 10ml)',
+    INDUSTRIAL_BULK: 'Wholesale / Industrial (> 25kg / 25L)',
+  };
+  const categoryName = categoryLabels[report.scan.commodityCategory ?? 'GENERAL_RETAIL'] ?? 'General Retail';
+  canvas.text('Item Type:', col1X, row2Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
+  canvas.text(categoryName.slice(0, 36), col1X + 72, row2Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.NAVY_HEADER });
 
   canvas.text('Source Type:', col2X, row2Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
   canvas.text(`${report.scan.sourceType} (${report.scan.mode})`, col2X + 68, row2Y, { font: 'HELVETICA', size: 8, color: PALETTE.TEXT_DARK });
 
   // Row 3
-  canvas.text('Ruleset Version:', col1X, row3Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
-  canvas.text(report.scan.ruleVersion.slice(0, 36), col1X + 72, row3Y, { font: 'HELVETICA', size: 7.5, color: PALETTE.TEXT_DARK });
+  canvas.text('Scan ID:', col1X, row3Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
+  canvas.text(report.scan.id.slice(0, 28), col1X + 72, row3Y, { font: 'COURIER', size: 7.5, color: PALETTE.TEXT_DARK });
 
-  canvas.text('Evidence Images:', col2X, row3Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
-  canvas.text(`${report.evidenceImages.length} image(s) registered`, col2X + 68, row3Y, { font: 'HELVETICA', size: 8, color: PALETTE.TEXT_DARK });
+  canvas.text('Ruleset Version:', col2X, row3Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
+  canvas.text(report.scan.ruleVersion.slice(0, 32), col2X + 68, row3Y, { font: 'HELVETICA', size: 7.5, color: PALETTE.TEXT_DARK });
+
+  // Row 4
+  canvas.text('Evidence Images:', col1X, row4Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
+  canvas.text(`${report.evidenceImages.length} image(s) registered`, col1X + 72, row4Y, { font: 'HELVETICA', size: 8, color: PALETTE.TEXT_DARK });
+
+  canvas.text('Screening Basis:', col2X, row4Y, { font: 'HELVETICA_BOLD', size: 8, color: PALETTE.TEXT_SECONDARY });
+  canvas.text('LMPC Rules, 2011 (Verified Ruleset)', col2X + 68, row4Y, { font: 'HELVETICA', size: 8, color: PALETTE.TEXT_DARK });
 
   canvas.restore();
   curY -= metaCardHeight + 12;
@@ -480,10 +497,11 @@ export function renderAestheticPdfReport(report: ScreeningReportDocument): Uint8
   // Metrics count line
   const passedCount = report.canonicalResult.evaluations.filter((e) => e.result === 'PASS').length;
   const failedCount = report.canonicalResult.evaluations.filter((e) => e.result === 'FAIL').length;
+  const notApplicableCount = report.canonicalResult.evaluations.filter((e) => e.result === 'NOT_APPLICABLE').length;
   const uncertainCount = report.canonicalResult.evaluations.filter((e) => e.result === 'UNCERTAIN').length;
   const notMeasurableCount = report.canonicalResult.evaluations.filter((e) => e.result === 'NOT_MEASURABLE').length;
 
-  const metricsText = `Evaluations: ${report.canonicalResult.evaluations.length}  |  Passed: ${passedCount}  |  Non-Compliant: ${failedCount}  |  Uncertain: ${uncertainCount}  |  Unmeasurable: ${notMeasurableCount}`;
+  const metricsText = `Evaluations: ${report.canonicalResult.evaluations.length}  |  Passed: ${passedCount}  |  Non-Compliant: ${failedCount}  |  Exempt/N/A: ${notApplicableCount}  |  Uncertain: ${uncertainCount}  |  Unmeasurable: ${notMeasurableCount}`;
   canvas.text(metricsText, MARGIN_X + 16, curY - 48, {
     font: 'HELVETICA_BOLD',
     size: 7.5,

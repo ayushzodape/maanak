@@ -11,6 +11,16 @@ import { Observation } from './observation';
 export const SOURCE_TYPES = ['PHYSICAL_PHOTO', 'ECOMMERCE_LISTING'] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
+export const COMMODITY_CATEGORIES = [
+  'GENERAL_RETAIL',
+  'FOOD_BEVERAGE',
+  'PHARMACEUTICAL',
+  'COSMETIC',
+  'SMALL_SACHET',
+  'INDUSTRIAL_BULK',
+] as const;
+export type CommodityCategory = (typeof COMMODITY_CATEGORIES)[number];
+
 export const SCAN_MODES = ['LIVE', 'DEMO_FIXTURE'] as const;
 export type ScanMode = (typeof SCAN_MODES)[number];
 
@@ -48,6 +58,7 @@ export interface Scan {
   readonly productName: string;
   readonly sourceType: SourceType;
   readonly mode: ScanMode;
+  readonly commodityCategory?: CommodityCategory;
   readonly images: readonly EvidenceImage[];
   readonly observations: readonly Observation[];
   readonly evaluations: readonly Evaluation[];
@@ -86,6 +97,11 @@ export function createScan(input: ScanInput): Scan {
     throw new DomainValidationError('completedAt is required for a complete scan');
   }
 
+  const commodityCategory = input.commodityCategory ?? 'GENERAL_RETAIL';
+  if (!COMMODITY_CATEGORIES.includes(commodityCategory)) {
+    throw new DomainValidationError(`unsupported commodity category: ${String(input.commodityCategory)}`);
+  }
+
   const imageIds = new Set(input.images.map((image) => image.id));
   for (const observation of input.observations) {
     if (observation.evidence && !imageIds.has(observation.evidence.imageId)) {
@@ -113,6 +129,7 @@ export function createScan(input: ScanInput): Scan {
 
   return Object.freeze({
     ...input,
+    commodityCategory,
     images: Object.freeze([...input.images]),
     observations: Object.freeze([...input.observations]),
     evaluations: Object.freeze([...input.evaluations]),

@@ -1,4 +1,4 @@
-import { CanonicalScanResult, ComplianceResult, EvidenceImage, Scan, SourceType } from '../domain';
+import { CanonicalScanResult, CommodityCategory, ComplianceResult, EvidenceImage, Scan, SourceType } from '../domain';
 
 export interface ScanHistoryEntry {
   readonly scan: Scan;
@@ -14,7 +14,7 @@ export interface ScanApiClient {
   login(username: string, password: string): Promise<AuthenticatedUser>;
   getSession(): Promise<AuthenticatedUser>;
   logout(): Promise<void>;
-  createScan(input: { productName: string; sourceType: SourceType; ruleVersion: string; mode?: 'LIVE' | 'DEMO_FIXTURE' }): Promise<Scan>;
+  createScan(input: { productName: string; sourceType: SourceType; ruleVersion: string; mode?: 'LIVE' | 'DEMO_FIXTURE'; commodityCategory?: CommodityCategory }): Promise<Scan>;
   uploadSourceImage(scanId: string, image: Blob, capturedAt?: string): Promise<{ image: EvidenceImage; scan: Scan }>;
   getScan(scanId: string): Promise<Scan>;
   saveResult(scanId: string): Promise<{ scan: Scan; result: CanonicalScanResult }>;

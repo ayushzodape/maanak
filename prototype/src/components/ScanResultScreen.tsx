@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon, Info, Ruler, ShieldAlert, X } from 'lucide-react';
-import { CanonicalScanResult, Observation, Rule, Scan } from '../domain';
+import { CanonicalScanResult, CommodityCategory, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
 import { createScreeningReport, renderHumanReadableReport, renderPdfReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
@@ -13,6 +13,15 @@ interface ScanResultScreenProps {
   onBack: () => void;
   onRetry: () => void;
 }
+
+export const COMMODITY_CATEGORY_LABELS: Record<CommodityCategory, string> = {
+  GENERAL_RETAIL: 'General Retail',
+  FOOD_BEVERAGE: 'Food & Beverages',
+  PHARMACEUTICAL: 'Pharmaceuticals / Drugs',
+  COSMETIC: 'Cosmetics & Personal Care',
+  SMALL_SACHET: 'Small Sachet (≤ 10g / 10ml)',
+  INDUSTRIAL_BULK: 'Wholesale / Industrial (> 25kg / 25L)',
+};
 
 const RESULT_STYLES: Record<CanonicalScanResult['overallResult'], { label: string; classes: string; icon: React.ReactNode }> = {
   PASS: { label: 'PASS', classes: 'bg-emerald-50 border-emerald-200 text-emerald-900', icon: <CheckCircle2 className="w-7 h-7 text-emerald-600" /> },
@@ -80,7 +89,15 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
             <div>
               <p className="text-[10px] font-mono uppercase tracking-wider opacity-70">Canonical screening result</p>
               <h1 className="mt-1 text-2xl font-black tracking-tight">{style.label}</h1>
-              <p className="mt-1 text-xs opacity-80">{scan.productName} · {scan.sourceType === 'PHYSICAL_PHOTO' ? 'Physical product photo' : 'E-commerce listing'}</p>
+              <p className="mt-1 text-xs opacity-80 flex flex-wrap items-center gap-1.5">
+                <span>{scan.productName}</span>
+                <span>·</span>
+                <span>{scan.sourceType === 'PHYSICAL_PHOTO' ? 'Physical product photo' : 'E-commerce listing'}</span>
+                <span>·</span>
+                <span className="font-semibold bg-black/10 px-1.5 py-0.5 rounded text-[11px]">
+                  {COMMODITY_CATEGORY_LABELS[scan.commodityCategory ?? 'GENERAL_RETAIL'] ?? 'General Retail'}
+                </span>
+              </p>
             </div>
           </div>
           <button onClick={onRetry} className="inline-flex items-center gap-1.5 rounded border border-current/30 px-3 py-2 text-xs font-bold hover:bg-white/50">
@@ -151,7 +168,16 @@ const RequirementRow: React.FC<{ evaluation: CanonicalScanResult['evaluations'][
       <p className="mt-1 leading-relaxed">{explanation.text}</p>
     </div>}
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-      <InfoCell label="Observation" value={observation ? `${observation.field}: ${formatObservationValue(observation.value)} (${observation.status})` : 'No observation supplied'} />
+      <InfoCell
+        label="Observation"
+        value={
+          observation
+            ? `${observation.field}: ${formatObservationValue(observation.value)} (${observation.status})`
+            : evaluation.result === 'NOT_APPLICABLE'
+            ? 'Exempt by commodity classification'
+            : 'No observation supplied'
+        }
+      />
       <InfoCell label="Confidence" value={evaluation.observationConfidence === null ? 'Not available' : `${Math.round(evaluation.observationConfidence * 100)}% observation confidence`} />
       <InfoCell label="Evidence" value={hasEvidence ? evaluation.evidence!.imageId : 'Incomplete evidence'} />
     </div>

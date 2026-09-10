@@ -183,3 +183,45 @@ test('Rule 7 returns NOT_MEASURABLE when measurements are NOT_MEASURABLE', () =>
   ];
   assert.equal(evaluateObservations(obs, [RULE_7])[0].result, 'NOT_MEASURABLE');
 });
+
+test('SMALL_SACHET commodity category deterministically exempts MRP, consumer care, mfg date, and Rule 7', () => {
+  // Empty observations - normally MRP, consumer care, mfg date would be UNCERTAIN or FAIL
+  const evaluations = evaluateObservations([], CURRENT_RULE_DEFINITIONS, 'SMALL_SACHET');
+  
+  const mrpEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_MRP')!;
+  assert.equal(mrpEval.result, 'NOT_APPLICABLE');
+  assert.match(mrpEval.reason, /Rule 26\(a\)/);
+
+  const careEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_CONSUMER_CARE')!;
+  assert.equal(careEval.result, 'NOT_APPLICABLE');
+  assert.match(careEval.reason, /Rule 26\(a\)/);
+
+  const dateEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_PACKING_DATE')!;
+  assert.equal(dateEval.result, 'NOT_APPLICABLE');
+  assert.match(dateEval.reason, /Rule 26\(a\)/);
+
+  const rule7Eval = evaluations.find(e => e.ruleId === 'LMPC_RULE_7_CHARACTER_HEIGHT')!;
+  assert.equal(rule7Eval.result, 'NOT_APPLICABLE');
+
+  // Manufacturer and Net Quantity still apply and remain UNCERTAIN since no observations supplied
+  const mfgEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_MANUFACTURER')!;
+  assert.equal(mfgEval.result, 'UNCERTAIN');
+});
+
+test('INDUSTRIAL_BULK commodity category deterministically exempts retail MRP and consumer care under Rule 3', () => {
+  const evaluations = evaluateObservations([], CURRENT_RULE_DEFINITIONS, 'INDUSTRIAL_BULK');
+
+  const mrpEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_MRP')!;
+  assert.equal(mrpEval.result, 'NOT_APPLICABLE');
+  assert.match(mrpEval.reason, /Rule 3/);
+
+  const careEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_CONSUMER_CARE')!;
+  assert.equal(careEval.result, 'NOT_APPLICABLE');
+  assert.match(careEval.reason, /Rule 3/);
+});
+
+test('GENERAL_RETAIL commodity category requires all standard declarations', () => {
+  const evaluations = evaluateObservations([], CURRENT_RULE_DEFINITIONS, 'GENERAL_RETAIL');
+  const mrpEval = evaluations.find(e => e.ruleId === 'LMPC_RULE_6_MRP')!;
+  assert.notEqual(mrpEval.result, 'NOT_APPLICABLE');
+});

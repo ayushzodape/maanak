@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, LoaderCircle, Upload, X } from 'lucide-react';
-import { CanonicalScanResult, Scan, SourceType } from '../domain';
+import { CanonicalScanResult, CommodityCategory, Scan, SourceType } from '../domain';
 import { createScanApiClient } from '../services/scanApi';
 import { RULESET_VERSION } from '../evaluation';
 import {
@@ -16,6 +16,59 @@ interface CustomScanModalProps {
   onScanCreated?: (scan: Scan, result: CanonicalScanResult) => void;
   onUnauthorized?: () => void;
 }
+
+interface CommodityOption {
+  id: CommodityCategory;
+  name: string;
+  badge: string;
+  description: string;
+  exemptionInfo: string;
+}
+
+const COMMODITY_OPTIONS: readonly CommodityOption[] = [
+  {
+    id: 'GENERAL_RETAIL',
+    name: 'General Retail',
+    badge: 'Standard LMPC',
+    description: 'Packaged consumer retail commodities',
+    exemptionInfo: 'All Rule 6 mandatory declarations & Rule 7 thresholds apply',
+  },
+  {
+    id: 'FOOD_BEVERAGE',
+    name: 'Food & Beverages',
+    badge: 'FSSAI + Metrology',
+    description: 'Edible food items & packaged beverages',
+    exemptionInfo: 'Standard retail declarations, mfg/packing date & net quantity',
+  },
+  {
+    id: 'PHARMACEUTICAL',
+    name: 'Pharmaceuticals / Drugs',
+    badge: 'CDSCO + Metrology',
+    description: 'Medical formulations & drugs',
+    exemptionInfo: 'Specialized labeling rules; retail declarations where applicable',
+  },
+  {
+    id: 'COSMETIC',
+    name: 'Cosmetics & Personal Care',
+    badge: 'Cosmetics Rules',
+    description: 'Skincare, lotions, haircare, perfumes',
+    exemptionInfo: 'Batch number, mfg date, net content, manufacturer details',
+  },
+  {
+    id: 'SMALL_SACHET',
+    name: 'Small Sachet (≤ 10g / 10ml)',
+    badge: 'Exempt Rule 26(a)',
+    description: 'Miniature single-use packs ≤ 10g or 10ml',
+    exemptionInfo: 'Statutorily exempt from MRP, consumer care & detailed dates',
+  },
+  {
+    id: 'INDUSTRIAL_BULK',
+    name: 'Wholesale / Industrial (> 25kg / 25L)',
+    badge: 'Exempt Rule 3',
+    description: 'Institutional or industrial packages > 25kg/25L',
+    exemptionInfo: 'Exempt from retail MRP and retail consumer care declarations',
+  },
+];
 
 const PROCESSING_COPY: Record<ScanEntryState['status'], string> = {
   IDLE: 'Choose a source and upload a product image to begin.',
@@ -87,6 +140,7 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
         productName: flow.productName.trim(),
         sourceType: flow.sourceType,
         ruleVersion: RULESET_VERSION,
+        commodityCategory: flow.commodityCategory,
       });
       setScan(createdScan);
       const uploaded = await scanApi.uploadSourceImage(createdScan.id, fileToUpload);
@@ -152,6 +206,54 @@ export const CustomScanModal: React.FC<CustomScanModalProps> = ({ onClose, onSca
                       <span className="text-[11px] text-slate-500">{sourceType === 'PHYSICAL_PHOTO' ? 'Capture from the phone camera' : 'Upload a product listing image'}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-900">Item Type · Classify Applicable Rules</label>
+                  <span className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                    Statutory applicability
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Select packaging category to route deterministic legal rules and activate statutory exemptions (e.g., Rule 26(a) for small sachets &le; 10g, Rule 3 for wholesale/industrial &gt; 25kg).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-0.5">
+                  {COMMODITY_OPTIONS.map((opt) => {
+                    const isSelected = flow.commodityCategory === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => update({ type: 'SET_COMMODITY_CATEGORY', commodityCategory: opt.id })}
+                        className={`text-left p-2.5 rounded border text-xs transition-all ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/80 ring-1 ring-blue-600 text-blue-950'
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="font-bold text-xs truncate">{opt.name}</span>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-medium shrink-0 ${
+                              opt.badge.includes('Exempt')
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : isSelected
+                                ? 'bg-blue-200 text-blue-900'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {opt.badge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 line-clamp-1">{opt.description}</p>
+                        <p className={`text-[10px] mt-1 line-clamp-1 ${isSelected ? 'text-blue-700 font-medium' : 'text-slate-400'}`}>
+                          {opt.exemptionInfo}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

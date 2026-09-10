@@ -4,8 +4,15 @@ import {
   DomainValidationError,
   ISODateTime,
 } from './common';
+import { CommodityCategory, COMMODITY_CATEGORIES } from './scan';
 
 export type RuleVerificationStatus = 'VERIFIED' | 'UNVERIFIED' | 'BLOCKED';
+
+export interface RuleApplicability {
+  readonly allowedCategories?: readonly CommodityCategory[];
+  readonly exemptCategories?: readonly CommodityCategory[];
+  readonly exemptionReason?: string;
+}
 
 export type RuleLogic =
   | { readonly kind: 'DECLARATION_PRESENCE'; readonly field: string }
@@ -22,6 +29,7 @@ export interface Rule {
   readonly verifiedOn: ISODateTime | null;
   readonly verificationStatus: RuleVerificationStatus;
   readonly logic: RuleLogic;
+  readonly applicability?: RuleApplicability;
   readonly knownGaps: readonly string[];
 }
 
@@ -56,5 +64,29 @@ export function createRule(input: RuleInput): Rule {
   if (!Array.isArray(input.knownGaps) || input.knownGaps.some((gap) => typeof gap !== 'string')) {
     throw new DomainValidationError('knownGaps must be an array of strings');
   }
-  return Object.freeze({ ...input, knownGaps: Object.freeze([...input.knownGaps]) });
+  if (input.applicability) {
+    if (input.applicability.allowedCategories) {
+      for (const cat of input.applicability.allowedCategories) {
+        if (!COMMODITY_CATEGORIES.includes(cat)) {
+          throw new DomainValidationError(`unsupported allowedCategory: ${String(cat)}`);
+        }
+      }
+    }
+    if (input.applicability.exemptCategories) {
+      for (const cat of input.applicability.exemptCategories) {
+        if (!COMMODITY_CATEGORIES.includes(cat)) {
+          throw new DomainValidationError(`unsupported exemptCategory: ${String(cat)}`);
+        }
+      }
+    }
+  }
+  return Object.freeze({
+    ...input,
+    applicability: input.applicability ? Object.freeze({
+      ...input.applicability,
+      allowedCategories: input.applicability.allowedCategories ? Object.freeze([...input.applicability.allowedCategories]) : undefined,
+      exemptCategories: input.applicability.exemptCategories ? Object.freeze([...input.applicability.exemptCategories]) : undefined,
+    }) : undefined,
+    knownGaps: Object.freeze([...input.knownGaps]),
+  });
 }

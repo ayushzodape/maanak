@@ -1,5 +1,6 @@
 import {
   CanonicalScanResult,
+  CommodityCategory,
   createCanonicalScanResult,
   createEvaluation,
   Evaluation,
@@ -102,7 +103,42 @@ function selectBestObservation(matching: readonly Observation[]): Observation | 
   return best;
 }
 
-function evaluateRule(observations: readonly Observation[], rule: Rule): Evaluation {
+function evaluateRule(observations: readonly Observation[], rule: Rule, commodityCategory?: CommodityCategory): Evaluation {
+  const category = commodityCategory ?? 'GENERAL_RETAIL';
+
+  // Statutory category applicability routing
+  if (rule.applicability) {
+    if (rule.applicability.exemptCategories && rule.applicability.exemptCategories.includes(category)) {
+      return createEvaluation({
+        id: `evaluation-${rule.id}`,
+        ruleId: rule.id,
+        ruleVersion: rule.sourceVersion,
+        observationId: null,
+        result: 'NOT_APPLICABLE',
+        observationConfidence: 1.0,
+        observedValue: null,
+        reason: rule.applicability.exemptionReason || `Rule is statutorily exempt for ${category}.`,
+        evidence: null,
+        evaluatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (rule.applicability.allowedCategories && !rule.applicability.allowedCategories.includes(category)) {
+      return createEvaluation({
+        id: `evaluation-${rule.id}`,
+        ruleId: rule.id,
+        ruleVersion: rule.sourceVersion,
+        observationId: null,
+        result: 'NOT_APPLICABLE',
+        observationConfidence: 1.0,
+        observedValue: null,
+        reason: rule.applicability.exemptionReason || `Rule applies only to ${rule.applicability.allowedCategories.join(', ')}.`,
+        evidence: null,
+        evaluatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   const field = rule.logic.kind === 'DECLARATION_PRESENCE' || rule.logic.kind === 'BLOCKED'
     ? rule.logic.field ?? null
     : null;
@@ -144,8 +180,9 @@ function overallResult(evaluations: readonly Evaluation[]) {
 export function evaluateObservations(
   observations: readonly Observation[],
   rules: readonly Rule[],
+  commodityCategory?: CommodityCategory,
 ): readonly Evaluation[] {
-  return rules.map((rule) => evaluateRule(observations, rule));
+  return rules.map((rule) => evaluateRule(observations, rule, commodityCategory));
 }
 
 export function evaluateScan(
@@ -153,8 +190,9 @@ export function evaluateScan(
   observations: readonly Observation[],
   rules: readonly Rule[],
   evaluatedAt = new Date().toISOString(),
+  commodityCategory?: CommodityCategory,
 ): EvaluationBundle {
-  const evaluations = evaluateObservations(observations, rules);
+  const evaluations = evaluateObservations(observations, rules, commodityCategory);
   const canonicalResult = createCanonicalScanResult({
     scanId,
     overallResult: overallResult(evaluations),

@@ -1,4 +1,4 @@
-import { SourceType } from '../domain';
+import { CommodityCategory, SourceType } from '../domain';
 
 export const MAX_SCAN_IMAGE_BYTES = 10 * 1024 * 1024;
 export const SUPPORTED_SCAN_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -20,6 +20,7 @@ export type ScanEntryStatus =
 export interface ScanEntryState {
   readonly status: ScanEntryStatus;
   readonly sourceType: SourceType | null;
+  readonly commodityCategory: CommodityCategory;
   readonly productName: string;
   readonly imageSelected: boolean;
   readonly scanId: string | null;
@@ -28,6 +29,7 @@ export interface ScanEntryState {
 
 export type ScanEntryEvent =
   | { type: 'SELECT_SOURCE'; sourceType: SourceType }
+  | { type: 'SET_COMMODITY_CATEGORY'; commodityCategory: CommodityCategory }
   | { type: 'SET_PRODUCT_NAME'; productName: string }
   | { type: 'IMAGE_SELECTED' }
   | { type: 'UPLOAD_STARTED' }
@@ -46,6 +48,7 @@ export class ScanFlowTransitionError extends Error {
 export const initialScanEntryState: ScanEntryState = {
   status: 'IDLE',
   sourceType: null,
+  commodityCategory: 'GENERAL_RETAIL',
   productName: '',
   imageSelected: false,
   scanId: null,
@@ -81,6 +84,11 @@ export function transitionScanEntry(state: ScanEntryState, event: ScanEntryEvent
         throw invalidTransition(state.status, event.type);
       }
       return { ...state, sourceType: event.sourceType, errorMessage: null };
+    case 'SET_COMMODITY_CATEGORY':
+      if (state.status !== 'IDLE' && state.status !== 'ERROR') {
+        throw invalidTransition(state.status, event.type);
+      }
+      return { ...state, commodityCategory: event.commodityCategory, errorMessage: null };
     case 'SET_PRODUCT_NAME':
       if (state.status !== 'IDLE' && state.status !== 'ERROR') {
         throw invalidTransition(state.status, event.type);

@@ -13,6 +13,7 @@ export interface ScreeningReportDocument {
     readonly productName: string;
     readonly sourceType: Scan['sourceType'];
     readonly mode: Scan['mode'];
+    readonly commodityCategory?: Scan['commodityCategory'];
     readonly ruleVersion: string;
     readonly processing: Scan['processing'];
     readonly timestamps: Scan['timestamps'];
@@ -82,6 +83,7 @@ export function createScreeningReport(
       productName: scan.productName,
       sourceType: scan.sourceType,
       mode: scan.mode,
+      commodityCategory: scan.commodityCategory,
       ruleVersion: scan.ruleVersion,
       processing: scan.processing,
       timestamps: scan.timestamps,

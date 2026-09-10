@@ -5,7 +5,7 @@ import express, { NextFunction, Request, Response } from 'express';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult } from '../src/domain';
+import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult, COMMODITY_CATEGORIES, CommodityCategory } from '../src/domain';
 import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
 import { CURRENT_RULE_DEFINITIONS, evaluateScan, RULESET_VERSION } from '../src/evaluation';
 import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256 } from './repository';
@@ -19,6 +19,7 @@ interface CreateScanBody {
   sourceType?: unknown;
   ruleVersion?: unknown;
   mode?: unknown;
+  commodityCategory?: unknown;
 }
 
 export interface ApiErrorBody {
@@ -79,12 +80,14 @@ export function createApp(
       const sourceType = requiredSourceType(body?.sourceType);
       const ruleVersion = requiredString(body?.ruleVersion, 'ruleVersion');
       const mode = requiredScanMode(body?.mode);
+      const commodityCategory = optionalCommodityCategory(body?.commodityCategory);
       const timestamp = new Date().toISOString();
       const scan: Scan = createScan({
         id: `scan_${randomUUID()}`,
         productName,
         sourceType,
         mode,
+        commodityCategory,
         images: [],
         observations: [],
         evaluations: [],
@@ -205,7 +208,7 @@ export function createApp(
       }
       // The request body is intentionally ignored. Results are derived only
       // from persisted observations and the server-owned verified ruleset.
-      const { canonicalResult: result } = evaluateScan(scan.id, scan.observations, CURRENT_RULE_DEFINITIONS);
+      const { canonicalResult: result } = evaluateScan(scan.id, scan.observations, CURRENT_RULE_DEFINITIONS, undefined, scan.commodityCategory);
       const completedScan = repository.saveCanonicalResult(scan.id, result);
       res.status(201).json({ scan: completedScan, result });
     } catch (error) {
@@ -305,6 +308,14 @@ function optionalResult(value: unknown): ComplianceResult | undefined {
   if (parsed === undefined) return undefined;
   if (!COMPLIANCE_RESULTS.includes(parsed as ComplianceResult)) throw new DomainValidationError('result must be a canonical compliance result');
   return parsed as ComplianceResult;
+}
+
+function optionalCommodityCategory(value: unknown): CommodityCategory {
+  if (value === undefined) return 'GENERAL_RETAIL';
+  if (typeof value !== 'string' || !COMMODITY_CATEGORIES.includes(value as CommodityCategory)) {
+    throw new DomainValidationError(`commodityCategory must be one of: ${COMMODITY_CATEGORIES.join(', ')}`);
+  }
+  return value as CommodityCategory;
 }
 
 function apiError(code: string, message: string): ApiErrorBody {

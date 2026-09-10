@@ -1,4 +1,4 @@
-import { createRule, Rule } from '../domain';
+import { createRule, Rule, RuleApplicability } from '../domain';
 
 /**
  * This is deliberately a small, verified declaration-presence subset. It
@@ -8,17 +8,48 @@ import { createRule, Rule } from '../domain';
 export const RULESET_VERSION = 'lmpc-2011-core-declarations-verified-subset-1';
 const verificationDate = '2026-09-06T00:00:00.000Z';
 
-const declarationRules = [
-  ['LMPC_RULE_6_MANUFACTURER', 'Manufacturer/packer/importer declaration', 'manufacturer'],
-  ['LMPC_RULE_6_GENERIC_NAME', 'Generic name declaration', 'generic_name'],
-  ['LMPC_RULE_6_NET_QUANTITY', 'Net quantity declaration', 'net_quantity'],
-  ['LMPC_RULE_6_PACKING_DATE', 'Month/year of manufacture, packing, or import', 'date_mfg'],
-  ['LMPC_RULE_6_MRP', 'Maximum retail price declaration', 'mrp'],
-  ['LMPC_RULE_6_CONSUMER_CARE', 'Consumer-care declaration', 'consumer_care'],
-] as const;
+interface DeclarationRuleConfig {
+  readonly id: string;
+  readonly title: string;
+  readonly field: string;
+  readonly applicability?: RuleApplicability;
+}
+
+const declarationRules: readonly DeclarationRuleConfig[] = [
+  { id: 'LMPC_RULE_6_MANUFACTURER', title: 'Manufacturer/packer/importer declaration', field: 'manufacturer' },
+  { id: 'LMPC_RULE_6_GENERIC_NAME', title: 'Generic name declaration', field: 'generic_name' },
+  { id: 'LMPC_RULE_6_NET_QUANTITY', title: 'Net quantity declaration', field: 'net_quantity' },
+  {
+    id: 'LMPC_RULE_6_PACKING_DATE',
+    title: 'Month/year of manufacture, packing, or import',
+    field: 'date_mfg',
+    applicability: {
+      exemptCategories: ['SMALL_SACHET'],
+      exemptionReason: 'Small retail packages (<= 10g / 10ml) are exempt from detailed date declaration under LMPC Rule 26(a).',
+    },
+  },
+  {
+    id: 'LMPC_RULE_6_MRP',
+    title: 'Maximum retail price declaration',
+    field: 'mrp',
+    applicability: {
+      exemptCategories: ['SMALL_SACHET', 'INDUSTRIAL_BULK'],
+      exemptionReason: 'Exempt from retail MRP declaration under LMPC Rule 26(a) (packages <= 10g) / Rule 3 (industrial/institutional consumer packages).',
+    },
+  },
+  {
+    id: 'LMPC_RULE_6_CONSUMER_CARE',
+    title: 'Consumer-care declaration',
+    field: 'consumer_care',
+    applicability: {
+      exemptCategories: ['SMALL_SACHET', 'INDUSTRIAL_BULK'],
+      exemptionReason: 'Exempt from consumer care declaration under LMPC Rule 26(a) / Rule 3 (not for retail individual sale).',
+    },
+  },
+];
 
 export const VERIFIED_RULE_DEFINITIONS: readonly Rule[] = declarationRules.map(
-  ([id, title, field]) => createRule({
+  ({ id, title, field, applicability }) => createRule({
     id,
     title,
     source: 'Legal Metrology (Packaged Commodities) Rules, 2011 — Rule 6 core declaration subset',
@@ -27,6 +58,7 @@ export const VERIFIED_RULE_DEFINITIONS: readonly Rule[] = declarationRules.map(
     verifiedOn: verificationDate,
     verificationStatus: 'VERIFIED',
     logic: { kind: 'DECLARATION_PRESENCE', field },
+    applicability,
     knownGaps: [
       'This subset does not encode all exemptions or context-specific applicability.',
       'Imported-product country-of-origin and e-commerce-specific requirements require separate verified rule definitions.',
@@ -46,6 +78,10 @@ export const RULE_7 = createRule({
   logic: {
     kind: 'CHARACTER_HEIGHT_AREA',
     fields: { panelArea: 'principal_display_panel_area_cm2', characterHeight: 'character_height_mm', characterWidth: 'character_width_mm', markingMethod: 'container_marking_method', packageScope: 'package_scope' },
+  },
+  applicability: {
+    exemptCategories: ['SMALL_SACHET', 'INDUSTRIAL_BULK'],
+    exemptionReason: 'Rule 7 minimum character height tables apply specifically to standard retail packaged commodities.',
   },
   knownGaps: [
     'Ordinary phone photographs are not certified measurement evidence.',
