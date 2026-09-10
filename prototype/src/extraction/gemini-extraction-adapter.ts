@@ -103,6 +103,7 @@ export interface GeminiExtractionAdapterOptions {
   readonly loadImageBytes: (image: EvidenceImage) => Uint8Array | undefined;
   readonly client?: GeminiModelClient;
   readonly timeoutMs?: number;
+  readonly retryDelayMs?: number;
 }
 
 export class GeminiConfigurationError extends ExtractionError {
@@ -117,12 +118,14 @@ export class GeminiConfigurationError extends ExtractionError {
 export class GeminiExtractionAdapter implements ExtractionAdapter {
   private readonly client: GeminiModelClient;
   private readonly timeoutMs: number;
+  private readonly retryDelayMs: number;
   private readonly loadImageBytes: (image: EvidenceImage) => Uint8Array | undefined;
 
   constructor(options: GeminiExtractionAdapterOptions) {
     if (!options.apiKey?.trim()) throw new GeminiConfigurationError();
     this.client = options.client || new GoogleGenAI({ apiKey: options.apiKey }).models;
     this.timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
+    this.retryDelayMs = options.retryDelayMs ?? (process.env.NODE_ENV === 'test' ? 50 : 1500);
     this.loadImageBytes = options.loadImageBytes;
   }
 
@@ -173,8 +176,9 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
           }
           const isTransient = isTransientError(error);
           if (isTransient && attempt < MAX_RETRIES) {
-            // Backoff before retry
-            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+            // Exponential backoff with jitter before retry
+            const delay = this.retryDelayMs * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 400);
+            await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
           }
           // If model is 404 or persistent error, break loop to try next fallback model
