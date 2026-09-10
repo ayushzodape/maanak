@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createCanonicalScanResult, createEvidenceImage, createEvaluation, createObservation, createScan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { createBarcodeScaleObservation } from '../measurement';
-import { createScreeningReport, renderHumanReadableReport, SCREENING_DISCLAIMER, serializeCanonicalJson } from './screening-report';
+import { createScreeningReport, renderHumanReadableReport, renderPdfReport, SCREENING_DISCLAIMER, serializeCanonicalJson } from './screening-report';
 
 const now = '2026-09-06T10:00:00.000Z';
 const image = createEvidenceImage({ id: 'image-1', storageKey: 'scans/scan-1/source.jpg', mimeType: 'image/jpeg', byteSize: 100, sha256: 'hash', width: 1000, height: 1000, capturedAt: now, createdAt: now });
@@ -71,4 +71,17 @@ test('human-readable report labels barcode data as an estimate with assumptions 
   assert.match(text, /Estimate limitations:/);
   assert.match(text, /not a certified measurement/i);
   assert.match(text, /must not be used as a legal fact/i);
+});
+
+test('renderPdfReport generates valid PDF byte stream with metadata and sections', () => {
+  const report = createScreeningReport(scan, canonicalResult, CURRENT_RULE_DEFINITIONS, now);
+  const pdfBytes = renderPdfReport(report);
+  assert.ok(pdfBytes instanceof Uint8Array);
+  assert.ok(pdfBytes.length > 1000);
+  const pdfString = new TextDecoder('latin1').decode(pdfBytes);
+  assert.ok(pdfString.startsWith('%PDF-1.4'));
+  assert.ok(pdfString.includes('%%EOF'));
+  assert.ok(pdfString.includes('MAANAK'));
+  assert.ok(pdfString.includes('STATUTORY RULE EVALUATIONS'));
+  assert.ok(pdfString.includes('Page 1 of'));
 });
