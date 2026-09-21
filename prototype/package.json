@@ -10,7 +10,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/domain/domain.test.ts src/scan-flow/scan-flow.test.ts src/extraction/extraction.test.ts src/evaluation/evaluator.test.ts src/components/evidence-visualization.test.ts src/components/dashboard-metrics.test.ts src/reports/screening-report.test.ts src/validation/real-product-validation.test.ts src/measurement/barcode-scale-estimation.test.ts src/explanations/evidence-backed-explanation.test.ts src/utils/image-processing.test.ts server/app.test.ts server/repository.test.ts",
-    "server": "tsx server/index.ts"
+    "server": "tsx server/index.ts",
+    "start": "tsx server/index.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -22,14 +23,14 @@
     "vite": "^6.2.3",
     "express": "^4.21.2",
     "dotenv": "^17.2.3",
-    "motion": "^12.23.24"
+    "motion": "^12.23.24",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
     "@types/express": "^4.17.21"
