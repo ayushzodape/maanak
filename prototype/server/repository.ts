@@ -3,6 +3,8 @@ import { createScan, CanonicalScanResult, ComplianceResult, EvidenceImage, Obser
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { deriveManufacturerTrends, ManufacturerTrendSummary } from '../src/analytics';
+
 export interface ScanHistoryQuery {
   readonly productName?: string;
   readonly result?: ComplianceResult;
@@ -15,6 +17,9 @@ export interface ScanHistoryEntry {
   readonly result: CanonicalScanResult;
 }
 
+export { deriveManufacturerTrends };
+export type { ManufacturerTrendSummary };
+
 export interface ScanRepository {
   create(scan: Scan): Scan;
   getById(id: string): Scan | undefined;
@@ -26,6 +31,7 @@ export interface ScanRepository {
   saveCanonicalResult(scanId: string, result: CanonicalScanResult): Scan;
   getCanonicalResult(scanId: string): CanonicalScanResult | undefined;
   listCompleted(query?: ScanHistoryQuery): ScanHistoryEntry[];
+  getManufacturerTrends(): ManufacturerTrendSummary[];
 }
 
 /**
@@ -145,6 +151,10 @@ export class InMemoryScanRepository implements ScanRepository {
       .sort((left, right) => right.scan.timestamps.createdAt.localeCompare(left.scan.timestamps.createdAt));
   }
 
+  getManufacturerTrends(): ManufacturerTrendSummary[] {
+    return deriveManufacturerTrends(this.listCompleted());
+  }
+
   private imageKey(scanId: string, imageId: string): string {
     return `${scanId}:${imageId}`;
   }
@@ -234,6 +244,10 @@ export class FileScanRepository implements ScanRepository {
       .sort((left, right) => right.scan.timestamps.createdAt.localeCompare(left.scan.timestamps.createdAt));
   }
 
+  getManufacturerTrends(): ManufacturerTrendSummary[] {
+    return deriveManufacturerTrends(this.listCompleted());
+  }
+
   private requireScan(id: string): Scan { const scan = this.getById(id); if (!scan) throw new Error(`scan does not exist: ${id}`); return scan; }
   private statePath(): string { return join(this.directory, 'scans.json'); }
   private imagesDirectory(): string { return join(this.directory, 'images'); }
@@ -283,3 +297,4 @@ function matchesHistoryQuery(scan: Scan, result: CanonicalScanResult, query: Sca
 export function sha256(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
+

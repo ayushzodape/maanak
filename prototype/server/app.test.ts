@@ -37,6 +37,8 @@ async function withServer<T>(callback: (baseUrl: string) => Promise<T>, app = cr
 
 process.env.MAANAK_AUTH_USERNAME = 'test-inspector';
 process.env.MAANAK_AUTH_PASSWORD = 'test-password';
+process.env.MAANAK_ADMIN_USERNAME = 'test-supervisor';
+process.env.MAANAK_ADMIN_PASSWORD = 'test-admin-password';
 
 test('creates and retrieves a scan with validated metadata', async () => {
   await withServer(async (baseUrl) => {
@@ -312,3 +314,77 @@ test('derives and persists the canonical result from server-owned observations a
     assert.equal(history.items[0].result.overallResult, 'UNCERTAIN');
   }, app);
 });
+
+test('enforces RBAC permissions: inspector denied admin audit logs, supervisor granted access', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  try {
+    // 1. Log in as Inspector
+    const inspectorLogin = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'test-inspector', password: 'test-password' }),
+    });
+    assert.equal(inspectorLogin.status, 200);
+    const inspectorUser = (await inspectorLogin.json() as { user: { role: string; permissions: string[] } }).user;
+    assert.equal(inspectorUser.role, 'INSPECTOR');
+    assert.equal(inspectorUser.permissions.includes('AUDIT_LOGS_VIEW'), false);
+    const inspectorCookie = inspectorLogin.headers.get('set-cookie')?.split(';', 1)[0];
+    assert.ok(inspectorCookie);
+
+    // Inspector tries to access /admin/audit-logs -> 403 Forbidden
+    const deniedAudit = await fetch(`${baseUrl}/admin/audit-logs`, { headers: { cookie: inspectorCookie } });
+    assert.equal(deniedAudit.status, 403);
+    const deniedBody = await deniedAudit.json() as { error: { code: string } };
+    assert.equal(deniedBody.error.code, 'FORBIDDEN');
+
+    // Inspector tries to access /admin/rules -> 403 Forbidden
+    const deniedRules = await fetch(`${baseUrl}/admin/rules`, { headers: { cookie: inspectorCookie } });
+    assert.equal(deniedRules.status, 403);
+
+    // 2. Log in as Supervisor Admin
+    const supervisorLogin = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'test-supervisor', password: 'test-admin-password' }),
+    });
+    assert.equal(supervisorLogin.status, 200);
+    const supervisorUser = (await supervisorLogin.json() as { user: { role: string; permissions: string[] } }).user;
+    assert.equal(supervisorUser.role, 'SUPERVISOR_ADMIN');
+    assert.ok(supervisorUser.permissions.includes('AUDIT_LOGS_VIEW'));
+    assert.ok(supervisorUser.permissions.includes('RULES_MANAGE'));
+    const supervisorCookie = supervisorLogin.headers.get('set-cookie')?.split(';', 1)[0];
+    assert.ok(supervisorCookie);
+
+    // Supervisor accesses /admin/audit-logs -> 200 OK with logged audit events
+    const auditResponse = await fetch(`${baseUrl}/admin/audit-logs`, { headers: { cookie: supervisorCookie } });
+    assert.equal(auditResponse.status, 200);
+    const auditData = await auditResponse.json() as { logs: { action: string; role: string }[] };
+    assert.ok(Array.isArray(auditData.logs));
+    assert.ok(auditData.logs.some((log) => log.action === 'LOGIN'));
+
+    // Supervisor accesses /admin/rules -> 200 OK with verified ruleset
+    const rulesResponse = await fetch(`${baseUrl}/admin/rules`, { headers: { cookie: supervisorCookie } });
+    assert.equal(rulesResponse.status, 200);
+    const rulesData = await rulesResponse.json() as { rulesetVersion: string; rules: unknown[] };
+    assert.ok(rulesData.rulesetVersion);
+    assert.ok(rulesData.rules.length > 0);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test('GET /scans/analytics/manufacturers returns aggregated manufacturer trends', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/scans/analytics/manufacturers`);
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { trends: unknown[] };
+    assert.ok(Array.isArray(payload.trends));
+  });
+});
+

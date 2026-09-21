@@ -8,8 +8,8 @@ const __dirname = path.dirname(__filename);
 import { createEvidenceImage, createScan, DomainValidationError, Scan, ScanMode, SourceType, COMPLIANCE_RESULTS, ComplianceResult, COMMODITY_CATEGORIES, CommodityCategory } from '../src/domain';
 import { ExtractionAdapter, ExtractionError, UnavailableExtractionAdapter } from '../src/extraction';
 import { CURRENT_RULE_DEFINITIONS, evaluateScan, RULESET_VERSION } from '../src/evaluation';
-import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256 } from './repository';
-import { AuthConfig, AuthenticatedUser, configuredAuthFromEnvironment, InMemorySessionStore, readSessionToken, SESSION_COOKIE, SessionStore } from './auth';
+import { InMemoryScanRepository, ScanRepository, ScanHistoryQuery, sha256, ManufacturerTrendSummary } from './repository';
+import { AuthConfig, AuthenticatedUser, configuredAuthFromEnvironment, InMemorySessionStore, readSessionToken, ROLE_PERMISSIONS, SESSION_COOKIE, SessionStore, UserPermission, UserRole } from './auth';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -29,6 +29,16 @@ export interface ApiErrorBody {
   };
 }
 
+export interface AuditLogEntry {
+  readonly id: string;
+  readonly timestamp: string;
+  readonly action: string;
+  readonly userId: string;
+  readonly username: string;
+  readonly role: UserRole;
+  readonly details?: Record<string, unknown>;
+}
+
 export function createApp(
   repository: ScanRepository = new InMemoryScanRepository(),
   demoExtractionAdapter: ExtractionAdapter = new UnavailableExtractionAdapter(),
@@ -40,6 +50,37 @@ export function createApp(
   app.use(express.json({ limit: '256kb' }));
   app.use(express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: MAX_IMAGE_BYTES }));
 
+  const auditLogs: AuditLogEntry[] = [];
+
+  function recordAudit(action: string, user: AuthenticatedUser, details?: Record<string, unknown>) {
+    auditLogs.unshift({
+      id: `audit_${randomUUID()}`,
+      timestamp: new Date().toISOString(),
+      action,
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      details,
+    });
+    if (auditLogs.length > 500) auditLogs.pop();
+  }
+
+  function requirePermission(permission: UserPermission) {
+    return (req: Request, res: Response, next: NextFunction) => {
+      const user = sessionStore.get(readSessionToken(req.header('cookie')));
+      if (!user) {
+        res.status(401).json(apiError('AUTH_REQUIRED', 'authenticated session is required'));
+        return;
+      }
+      if (!user.permissions.includes(permission)) {
+        res.status(403).json(apiError('FORBIDDEN', `permission ${permission} is required for this action`));
+        return;
+      }
+      res.locals.user = user;
+      next();
+    };
+  }
+
   app.post('/auth/login', (req, res) => {
     if (!authConfig) {
       res.status(503).json(apiError('AUTH_NOT_CONFIGURED', 'server authentication is not configured'));
@@ -47,11 +88,40 @@ export function createApp(
     }
     const username = req.body?.username;
     const password = req.body?.password;
-    if (username !== authConfig.username || password !== authConfig.password) {
+
+    let matchedUser: AuthenticatedUser | undefined;
+
+    if ('users' in authConfig && Array.isArray(authConfig.users)) {
+      const account = authConfig.users.find((u) => u.username === username && u.password === password);
+      if (account) {
+        matchedUser = {
+          id: account.id ?? `user_${account.username}`,
+          username: account.username,
+          role: account.role,
+          permissions: ROLE_PERMISSIONS[account.role],
+        };
+      }
+    }
+
+    if (!matchedUser && authConfig.username && authConfig.password) {
+      if (username === authConfig.username && password === authConfig.password) {
+        const role: UserRole = authConfig.role ?? 'INSPECTOR';
+        matchedUser = {
+          id: 'configured-inspector',
+          username: authConfig.username,
+          role,
+          permissions: ROLE_PERMISSIONS[role],
+        };
+      }
+    }
+
+    if (!matchedUser) {
       res.status(401).json(apiError('INVALID_CREDENTIALS', 'username or password is incorrect'));
       return;
     }
-    const session = sessionStore.create();
+
+    recordAudit('LOGIN', matchedUser, { ip: req.ip });
+    const session = sessionStore.create(matchedUser);
     res.cookie(SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
     res.status(200).json({ user: session.user });
   });
@@ -66,9 +136,23 @@ export function createApp(
   });
 
   app.post('/auth/logout', (req, res) => {
+    const user = sessionStore.get(readSessionToken(req.header('cookie')));
+    if (user) recordAudit('LOGOUT', user);
     sessionStore.delete(readSessionToken(req.header('cookie')));
     res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
     res.status(204).send();
+  });
+
+  // Admin routes (RBAC protected)
+  app.get('/admin/audit-logs', requirePermission('AUDIT_LOGS_VIEW'), (_req, res) => {
+    res.status(200).json({ logs: auditLogs });
+  });
+
+  app.get('/admin/rules', requirePermission('RULES_MANAGE'), (_req, res) => {
+    res.status(200).json({
+      rulesetVersion: RULESET_VERSION,
+      rules: CURRENT_RULE_DEFINITIONS,
+    });
   });
 
   app.use('/scans', requireAuthenticated(sessionStore));
@@ -95,7 +179,10 @@ export function createApp(
         processing: { stage: 'IDLE', lifecycle: 'DRAFT' },
         timestamps: { createdAt: timestamp, updatedAt: timestamp },
       });
-      res.status(201).json(repository.create(scan));
+      const created = repository.create(scan);
+      const user = res.locals.user as AuthenticatedUser | undefined;
+      if (user) recordAudit('SCAN_CREATED', user, { scanId: scan.id, productName });
+      res.status(201).json(created);
     } catch (error) {
       next(error);
     }
@@ -161,6 +248,11 @@ export function createApp(
       }
       next(error);
     }
+  });
+
+  app.get('/scans/analytics/manufacturers', (_req, res) => {
+    const trends = repository.getManufacturerTrends();
+    res.status(200).json({ trends });
   });
 
   app.get('/scans/:id', (req, res) => {
@@ -243,7 +335,7 @@ export function createApp(
   
   // SPA Fallback for any routes that aren't API endpoints
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/scans') || req.path.startsWith('/auth')) {
+    if (req.path.startsWith('/scans') || req.path.startsWith('/auth') || req.path.startsWith('/admin')) {
       return next();
     }
     res.sendFile(path.join(distPath, 'index.html'));

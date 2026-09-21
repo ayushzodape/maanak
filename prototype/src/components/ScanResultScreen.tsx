@@ -3,7 +3,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Image as ImageIcon,
 import { CanonicalScanResult, CommodityCategory, Observation, Rule, Scan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { collectEvidencePoints } from './evidence-visualization';
-import { createScreeningReport, renderHumanReadableReport, renderPdfReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
+import { createScreeningReport, renderCsvReport, renderDocxReport, renderHumanReadableReport, renderPdfReport, serializeCanonicalJson, SCREENING_DISCLAIMER } from '../reports';
 import { formatBarcodeScaleEstimate, isBarcodeScaleEstimateValue } from '../measurement';
 import { EvidenceBackedExplanation } from '../explanations';
 
@@ -143,7 +143,9 @@ export const ScanResultScreen: React.FC<ScanResultScreenProps> = ({ scan, result
         <div className="mt-3 flex flex-wrap gap-2">
           <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.json`, serializeCanonicalJson(report), 'application/json')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download canonical JSON</button>
           <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.pdf`, renderPdfReport(report), 'application/pdf')} className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download PDF</button>
-          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.txt`, renderHumanReadableReport(report), 'text/plain;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download screening report</button>
+          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.docx`, renderDocxReport(report), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')} className="rounded bg-indigo-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Download DOCX (Editable)</button>
+          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.csv`, renderCsvReport(report), 'text/csv;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download CSV</button>
+          <button disabled={!exportAcknowledged || !report} onClick={() => report && exportReport(`${scan.id}_screening.txt`, renderHumanReadableReport(report), 'text/plain;charset=utf-8')} className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400">Download text summary</button>
         </div>
         {reportBuild.error && <p className="mt-2 text-xs text-rose-700">Report unavailable: {reportBuild.error}</p>}
         {exportError && <p className="mt-2 text-xs text-rose-700">{exportError}</p>}

@@ -15,6 +15,7 @@ import { InspectorOverrideModal } from './components/InspectorOverrideModal';
 import { CustomScanModal } from './components/CustomScanModal';
 import { ScanResultScreen } from './components/ScanResultScreen';
 import { ScanHistoryScreen } from './components/ScanHistoryScreen';
+import { SupervisorAdminPanel } from './components/SupervisorAdminPanel';
 import { LoginScreen } from './components/LoginScreen';
 import { CanonicalScanResult, Scan } from './domain';
 import { createScanApiClient } from './services/scanApi';
@@ -26,7 +27,7 @@ export default function App() {
   // Master state
   const [cases, setCases] = useState<PackageEvidence[]>(INITIAL_CASES);
   const [currentCase, setCurrentCase] = useState<PackageEvidence>(INITIAL_CASES[0]);
-  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'workbench' | 'repository' | 'dashboard'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'workbench' | 'repository' | 'dashboard' | 'admin'>('home');
   const [activeRole, setActiveRole] = useState<UserRole>('LEGAL_METROLOGY_OFFICER');
 
   // Modal triggers
@@ -170,9 +171,14 @@ export default function App() {
         activeRole={activeRole}
         onChangeRole={(role) => {
           setActiveRole(role);
-          showNotification(`Display role changed to: ${officerNameMap[role]}. Server authorization remains ${authenticatedUser.role}.`);
+          showNotification(`Display role changed to: ${officerNameMap[role]}. Server authorization remains ${authenticatedUser?.role}.`);
         }}
         caseCount={cases.length}
+        authenticatedUser={authenticatedUser}
+        onLogout={async () => {
+          await scanApi.logout().catch(() => {});
+          setAuthenticatedUser(null);
+        }}
       />
 
       {/* Main App Body */}
@@ -211,6 +217,10 @@ export default function App() {
             onLoad={() => scanApi.listHistory()}
             onOpen={handleOpenHistory}
           />
+        )}
+
+        {currentTab === 'admin' && (
+          <SupervisorAdminPanel scanApi={scanApi} />
         )}
 
         </>}

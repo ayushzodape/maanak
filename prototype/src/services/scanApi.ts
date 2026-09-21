@@ -5,9 +5,31 @@ export interface ScanHistoryEntry {
   readonly result: CanonicalScanResult;
 }
 
+export type UserRole = 'INSPECTOR' | 'SUPERVISOR_ADMIN';
+
+export type UserPermission =
+  | 'SCANS_CREATE'
+  | 'SCANS_READ'
+  | 'REPORTS_EXPORT'
+  | 'RULES_MANAGE'
+  | 'METRICS_VIEW_DISTRICT'
+  | 'AUDIT_LOGS_VIEW';
+
 export interface AuthenticatedUser {
   readonly id: string;
-  readonly role: 'INSPECTOR';
+  readonly username: string;
+  readonly role: UserRole;
+  readonly permissions: readonly UserPermission[];
+}
+
+export interface AuditLogEntry {
+  readonly id: string;
+  readonly timestamp: string;
+  readonly action: string;
+  readonly userId: string;
+  readonly username: string;
+  readonly role: UserRole;
+  readonly details?: Record<string, unknown>;
 }
 
 export interface ScanApiClient {
@@ -20,6 +42,8 @@ export interface ScanApiClient {
   saveResult(scanId: string): Promise<{ scan: Scan; result: CanonicalScanResult }>;
   getResult(scanId: string): Promise<CanonicalScanResult>;
   listHistory(filters?: { productName?: string; result?: ComplianceResult; from?: string; to?: string }): Promise<ScanHistoryEntry[]>;
+  getAuditLogs(): Promise<AuditLogEntry[]>;
+  getRulesCatalog(): Promise<{ rulesetVersion: string; rules: unknown[] }>;
 }
 
 export interface ScanApiErrorPayload {
@@ -108,6 +132,17 @@ export function createScanApiClient(baseUrl = '', onUnauthorized?: () => void): 
       const response = await fetchWithTimeout(`${baseUrl}/scans${params.toString() ? `?${params}` : ''}`, { credentials: 'include' });
       const payload = await parseResponse<{ items: ScanHistoryEntry[] }>(response, onUnauthorized);
       return payload.items;
+    },
+
+    async getAuditLogs() {
+      const response = await fetchWithTimeout(`${baseUrl}/admin/audit-logs`, { credentials: 'include' });
+      const payload = await parseResponse<{ logs: AuditLogEntry[] }>(response, onUnauthorized);
+      return payload.logs;
+    },
+
+    async getRulesCatalog() {
+      const response = await fetchWithTimeout(`${baseUrl}/admin/rules`, { credentials: 'include' });
+      return parseResponse<{ rulesetVersion: string; rules: unknown[] }>(response, onUnauthorized);
     },
   };
 }

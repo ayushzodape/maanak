@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createCanonicalScanResult, createEvidenceImage, createEvaluation, createObservation, createScan } from '../domain';
 import { CURRENT_RULE_DEFINITIONS } from '../evaluation';
 import { createBarcodeScaleObservation } from '../measurement';
-import { createScreeningReport, renderHumanReadableReport, renderPdfReport, SCREENING_DISCLAIMER, serializeCanonicalJson } from './screening-report';
+import { createScreeningReport, renderCsvReport, renderDocxReport, renderHumanReadableReport, renderPdfReport, SCREENING_DISCLAIMER, serializeCanonicalJson } from './screening-report';
 
 const now = '2026-09-06T10:00:00.000Z';
 const image = createEvidenceImage({ id: 'image-1', storageKey: 'scans/scan-1/source.jpg', mimeType: 'image/jpeg', byteSize: 100, sha256: 'hash', width: 1000, height: 1000, capturedAt: now, createdAt: now });
@@ -84,4 +84,31 @@ test('renderPdfReport generates valid PDF byte stream with metadata and sections
   assert.ok(pdfString.includes('MAANAK'));
   assert.ok(pdfString.includes('STATUTORY RULE EVALUATIONS'));
   assert.ok(pdfString.includes('Page 1 of'));
+});
+
+test('renderDocxReport generates valid DOCX OpenXML zip stream with required XML parts', () => {
+  const report = createScreeningReport(scan, canonicalResult, CURRENT_RULE_DEFINITIONS, now);
+  const docxBytes = renderDocxReport(report);
+  assert.ok(docxBytes instanceof Uint8Array);
+  assert.ok(docxBytes.length > 500);
+  // Check ZIP local header signature PK\x03\x04
+  assert.equal(docxBytes[0], 0x50); // P
+  assert.equal(docxBytes[1], 0x4B); // K
+  assert.equal(docxBytes[2], 0x03);
+  assert.equal(docxBytes[3], 0x04);
+  const docxString = new TextDecoder('utf-8', { fatal: false }).decode(docxBytes);
+  assert.ok(docxString.includes('word/document.xml'));
+  assert.ok(docxString.includes('[Content_Types].xml'));
+  assert.ok(docxString.includes('MAANAK - PACKAGED COMMODITIES SCREENING REPORT'));
+  assert.ok(docxString.includes('STATUTORY SCREENING DISCLAIMER'));
+});
+
+test('renderCsvReport generates valid tabular CSV with disclaimer and findings', () => {
+  const report = createScreeningReport(scan, canonicalResult, CURRENT_RULE_DEFINITIONS, now);
+  const csv = renderCsvReport(report);
+  assert.match(csv, /MAANAK DIGITAL COMPLIANCE SCREENING REPORT/);
+  assert.match(csv, /Rule ID,Statutory Requirement,Status/);
+  assert.match(csv, /LMPC_RULE_6_MRP/);
+  assert.match(csv, /PASS/);
+  assert.match(csv, /screening system/i);
 });

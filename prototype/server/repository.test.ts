@@ -89,3 +89,31 @@ test('history search, result, and date filters operate on persisted canonical en
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('repository groups scans by manufacturer and calculates recurring screening findings', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'maanak-mfg-trends-'));
+  try {
+    const repository = new FileScanRepository(directory);
+    const scanA1 = scan('scan-a1', 'Britannia Biscuits Pack 1', '2026-09-01T10:00:00.000Z');
+    const scanA2 = scan('scan-a2', 'Britannia Biscuits Pack 2', '2026-09-02T10:00:00.000Z');
+    repository.create(scanA1);
+    repository.saveCanonicalResult('scan-a1', result('scan-a1', '2026-09-01T10:05:00.000Z', 'PASS'));
+    repository.create(scanA2);
+    repository.saveCanonicalResult('scan-a2', result('scan-a2', '2026-09-02T10:05:00.000Z', 'FAIL'));
+
+    const trends = repository.getManufacturerTrends();
+    assert.ok(trends.length >= 1);
+    const britannia = trends.find((t) => t.manufacturer.toLowerCase().includes('britannia'));
+    assert.ok(britannia);
+    assert.equal(britannia.totalScans, 2);
+    assert.equal(britannia.byResult.PASS, 1);
+    assert.equal(britannia.byResult.FAIL, 1);
+    assert.equal(britannia.complianceRate, 50);
+    assert.equal(britannia.screeningCategory, 'MIXED_SCREENING_HISTORY');
+    assert.equal(britannia.recurringViolations.length, 1);
+    assert.equal(britannia.recurringViolations[0].ruleId, 'verified-test-rule');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+

@@ -15,6 +15,7 @@ export default defineConfig(() => {
       proxy: {
         '/scans': 'http://localhost:3001',
         '/auth': 'http://localhost:3001',
+        '/admin': 'http://localhost:3001',
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

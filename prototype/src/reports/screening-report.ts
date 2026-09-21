@@ -104,10 +104,47 @@ export function serializeCanonicalJson(report: ScreeningReportDocument): string 
 }
 
 import { renderAestheticPdfReport } from './pdf-builder';
+import { renderDocxReport } from './docx-builder';
+
+export { renderDocxReport };
 
 /** High-aesthetic, dependency-free PDF export for the screening artifact. */
 export function renderPdfReport(report: ScreeningReportDocument): Uint8Array {
   return renderAestheticPdfReport(report);
+}
+
+function escapeCsvCell(val: string): string {
+  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+    return `"${val.replaceAll('"', '""')}"`;
+  }
+  return val;
+}
+
+/** Tabular CSV export of the screening findings for spreadsheet inspection. */
+export function renderCsvReport(report: ScreeningReportDocument): string {
+  const rows: string[][] = [
+    ['MAANAK DIGITAL COMPLIANCE SCREENING REPORT (CSV)'],
+    ['Product Name', report.scan.productName],
+    ['Scan ID', report.scan.id],
+    ['Source Type', report.scan.sourceType],
+    ['Category', report.scan.commodityCategory ?? 'GENERAL_RETAIL'],
+    ['Rule Version', report.scan.ruleVersion],
+    ['Overall Result', report.canonicalResult.overallResult],
+    ['Generated At', report.generatedAt],
+    ['Disclaimer', report.disclaimer],
+    [],
+    ['Rule ID', 'Statutory Requirement', 'Status', 'Evaluation Reason', 'Evidence Image ID', 'Bounding Box'],
+  ];
+
+  for (const ev of report.canonicalResult.evaluations) {
+    const rule = report.ruleMetadata.find((r) => r.id === ev.ruleId);
+    const title = rule?.title ?? ev.ruleId;
+    const imageId = ev.evidence?.imageId ?? 'NONE';
+    const bbox = ev.evidence?.boundingBox ? JSON.stringify(ev.evidence.boundingBox) : 'NONE';
+    rows.push([ev.ruleId, title, ev.result, ev.reason, imageId, bbox]);
+  }
+
+  return rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
 }
 
 function escapePdfText(value: string): string {
