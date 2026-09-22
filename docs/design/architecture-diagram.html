@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Architecture Diagram – Maanak (Slide)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #1E293B;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* ===== 16:9 SLIDE CANVAS ===== */
+    .slide {
+      width: 1600px;
+      height: 900px;
+      background: #FFFFFF;
+      border-radius: 6px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ===== HEADER BAR ===== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px 14px;
+      border-bottom: 2px solid #E2E8F0;
+      flex-shrink: 0;
+    }
+    .header-left h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #0F172A;
+      letter-spacing: -0.5px;
+    }
+    .header-left .subtitle {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sih-badge {
+      background: #1E40AF;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 5px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ===== PRINCIPLE BAR ===== */
+    .principle-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 9px 32px;
+      background: #F8FAFC;
+      border-bottom: 1px solid #E2E8F0;
+      flex-shrink: 0;
+    }
+    .principle-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .p-icon {
+      width: 24px; height: 24px;
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+    }
+    .p1 { color: #4F46E5; }  .p1 .p-icon { background: #EEF2FF; }
+    .p2 { color: #059669; }  .p2 .p-icon { background: #ECFDF5; }
+    .p3 { color: #EA580C; }  .p3 .p-icon { background: #FFF7ED; }
+    .principle-arrow { color: #CBD5E1; font-size: 16px; font-weight: 400; }
+
+    /* ===== MAIN 4-COLUMN LAYOUT ===== */
+    .main-content {
+      flex: 1;
+      display: flex;
+      padding: 16px 24px;
+      gap: 0;
+      min-height: 0;
+    }
+
+    /* ===== COLUMN ===== */
+    .col {
+      flex: 1;
+      border-radius: 10px;
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+    .col-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .col-number {
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; color: white;
+      flex-shrink: 0;
+    }
+    .col-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      line-height: 1.2;
+    }
+    .col-tag {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      margin-left: auto;
+      flex-shrink: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    /* Column colors */
+    .col-1 { background: #EFF6FF; }
+    .col-1 .col-number { background: #2563EB; }
+    .col-1 .col-title { color: #1E40AF; }
+
+    .col-2 { background: #EEF2FF; }
+    .col-2 .col-number { background: #4F46E5; }
+    .col-2 .col-title { color: #3730A3; }
+    .col-2 .col-tag { background: #E0E7FF; color: #4338CA; }
+
+    .col-3 { background: #ECFDF5; }
+    .col-3 .col-number { background: #059669; }
+    .col-3 .col-title { color: #065F46; }
+    .col-3 .col-tag { background: #D1FAE5; color: #047857; }
+
+    .col-4 { background: #FFF7ED; }
+    .col-4 .col-number { background: #EA580C; }
+    .col-4 .col-title { color: #9A3412; }
+    .col-4 .col-tag { background: #FFEDD5; color: #C2410C; }
+
+    /* ===== COMPONENT ITEMS ===== */
+    .item {
+      background: #FFFFFF;
+      border: 1px solid rgba(0,0,0,0.07);
+      border-radius: 7px;
+      padding: 9px 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .item-icon {
+      width: 32px; height: 32px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .item-text h3 {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #0F172A;
+      line-height: 1.25;
+      margin-bottom: 1px;
+    }
+    .item-text p {
+      font-size: 10px;
+      font-weight: 500;
+      color: #64748B;
+      line-height: 1.3;
+    }
+
+    /* Icon tints */
+    .ic-blue   { background: #DBEAFE; color: #2563EB; }
+    .ic-slate  { background: #E2E8F0; color: #475569; }
+    .ic-indigo { background: #E0E7FF; color: #4F46E5; }
+    .ic-green  { background: #D1FAE5; color: #059669; }
+    .ic-orange { background: #FFEDD5; color: #EA580C; }
+    .ic-teal   { background: #CCFBF1; color: #0D9488; }
+
+    /* Highlighted (primary engine) */
+    .item-primary {
+      border-color: #059669;
+      border-width: 1.5px;
+      background: #F0FDF9;
+    }
+
+    /* ===== MINI ITEMS (compact 2-in-1 row) ===== */
+    .mini-row {
+      display: flex;
+      gap: 6px;
+    }
+    .mini-item {
+      background: #FFFFFF;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 6px;
+      padding: 7px 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .mini-item .item-icon {
+      width: 26px; height: 26px;
+      font-size: 12px;
+    }
+    .mini-item h3 {
+      font-size: 10px;
+      font-weight: 700;
+      color: #0F172A;
+      line-height: 1.2;
+    }
+    .mini-item p {
+      font-size: 9px;
+      font-weight: 500;
+      color: #64748B;
+    }
+
+    /* ===== ARROW SEPARATOR (between columns) ===== */
+    .arrow-sep {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      flex-shrink: 0;
+      gap: 4px;
+      padding: 0 2px;
+    }
+    .arrow-icon {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: #F1F5F9;
+      border: 1.5px solid #CBD5E1;
+      display: flex; align-items: center; justify-content: center;
+      color: #64748B;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .arrow-label {
+      font-size: 8px;
+      font-weight: 600;
+      color: #94A3B8;
+      text-align: center;
+      line-height: 1.2;
+      max-width: 48px;
+      word-wrap: break-word;
+    }
+
+    /* ===== STATUS BADGES ===== */
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-top: auto;
+      padding-top: 4px;
+    }
+    .badge {
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      padding: 2.5px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .b-pass   { background: #D1FAE5; color: #065F46; }
+    .b-fail   { background: #FFE4E6; color: #9F1239; }
+    .b-unc    { background: #FEF3C7; color: #92400E; }
+    .b-na     { background: #E2E8F0; color: #475569; }
+    .b-nm     { background: #F3E8FF; color: #6B21A8; }
+    .b-obs    { background: #DBEAFE; color: #1E40AF; }
+    .b-nd     { background: #FFE4E6; color: #9F1239; }
+
+    /* ===== DIVIDER LINE ===== */
+    .section-divider {
+      height: 1px;
+      background: rgba(0,0,0,0.06);
+      margin: 2px 0;
+      border-radius: 1px;
+    }
+    .section-label {
+      font-size: 8px;
+      font-weight: 700;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 0;
+    }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 32px;
+      border-top: 1px solid #E2E8F0;
+      background: #F8FAFC;
+      flex-shrink: 0;
+    }
+    .footer-left {
+      font-size: 9px;
+      font-weight: 500;
+      color: #94A3B8;
+    }
+    .footer-right {
+      font-size: 10px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    /* ===== PRINT ===== */
+    @media print {
+      body { background: white; padding: 0; }
+      .slide { box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="slide">
+
+  <!-- ====== HEADER ====== -->
+  <div class="header">
+    <div class="header-left">
+      <h1>Architecture Diagram — Maanak</h1>
+      <div class="subtitle">AI-Assisted Digital Compliance Screening for Packaged Commodities</div>
+    </div>
+    <div class="header-right">
+      <span class="sih-badge">SIH26034</span>
+      <span class="sih-badge" style="background:#059669;">Dept. of Consumer Affairs</span>
+    </div>
+  </div>
+
+  <!-- ====== PRINCIPLE BAR ====== -->
+  <div class="principle-bar">
+    <span class="principle-step p1"><span class="p-icon">🔬</span> AI Observes</span>
+    <span class="principle-arrow">→</span>
+    <span class="principle-step p2"><span class="p-icon">⚖️</span> Rules Decide</span>
+    <span class="principle-arrow">→</span>
+    <span class="principle-step p3"><span class="p-icon">📋</span> Evidence Explains</span>
+  </div>
+
+  <!-- ====== MAIN 4-COLUMN CONTENT ====== -->
+  <div class="main-content">
+
+    <!-- ═══════ COLUMN 1: INPUT & SECURITY ═══════ -->
+    <div class="col col-1">
+      <div class="col-header">
+        <div class="col-number">1</div>
+        <div class="col-title">Input &<br>Security</div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-blue">📱</div>
+        <div class="item-text">
+          <h3>Inspector Mobile App</h3>
+          <p>PWA · Camera Capture · Offline Queue</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-blue">🖥️</div>
+        <div class="item-text">
+          <h3>Admin Dashboard</h3>
+          <p>Supervisory Oversight · Trends</p>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <div class="section-label">Security Layer</div>
+
+      <div class="item">
+        <div class="item-icon ic-slate">🔒</div>
+        <div class="item-text">
+          <h3>API Gateway</h3>
+          <p>Cloud Run · TLS 1.3 · Rate Limiting</p>
+        </div>
+      </div>
+
+      <div class="mini-row">
+        <div class="mini-item">
+          <div class="item-icon ic-slate">👤</div>
+          <div>
+            <h3>RBAC</h3>
+            <p>Inspector / Admin</p>
+          </div>
+        </div>
+        <div class="mini-item">
+          <div class="item-icon ic-slate">📋</div>
+          <div>
+            <h3>Audit Log</h3>
+            <p>Event Chain</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 1→2 -->
+    <div class="arrow-sep">
+      <div class="arrow-label">Raw Image</div>
+      <div class="arrow-icon">→</div>
+      <div class="arrow-label">EXIF Data</div>
+    </div>
+
+    <!-- ═══════ COLUMN 2: PERCEPTION AI ═══════ -->
+    <div class="col col-2">
+      <div class="col-header">
+        <div class="col-number">2</div>
+        <div class="col-title">Perception<br>AI Layer</div>
+        <div class="col-tag">AI Observes</div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-indigo">🖼️</div>
+        <div class="item-text">
+          <h3>Image Normalizer</h3>
+          <p>Resolution · Perspective · EXIF Validation</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-indigo">🧠</div>
+        <div class="item-text">
+          <h3>Gemini Multimodal VLM</h3>
+          <p>Text Extraction · Bounding Boxes · Region Detection</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-indigo">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="4" width="2" height="16"/><rect x="6" y="4" width="1" height="16"/><rect x="9" y="4" width="2" height="16"/><rect x="13" y="4" width="1" height="16"/><rect x="16" y="4" width="3" height="16"/><rect x="21" y="4" width="1" height="16"/></svg>
+        </div>
+        <div class="item-text">
+          <h3>GS1 Barcode Scale Engine</h3>
+          <p>EAN-13 (37.29mm × 25.93mm) · mm/px Anchor</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-indigo">📦</div>
+        <div class="item-text">
+          <h3>Observation Normalizer</h3>
+          <p>Typed Declaration records + Confidence</p>
+        </div>
+      </div>
+
+      <div class="badges">
+        <span class="badge b-obs">Observed</span>
+        <span class="badge b-nd">Not Detected</span>
+        <span class="badge b-unc">Uncertain</span>
+        <span class="badge b-nm">Not Measurable</span>
+      </div>
+    </div>
+
+    <!-- ARROW 2→3 -->
+    <div class="arrow-sep">
+      <div class="arrow-label">Structured Observations</div>
+      <div class="arrow-icon">→</div>
+      <div class="arrow-label">Declarations</div>
+    </div>
+
+    <!-- ═══════ COLUMN 3: RULES ENGINE ═══════ -->
+    <div class="col col-3">
+      <div class="col-header">
+        <div class="col-number">3</div>
+        <div class="col-title">Deterministic<br>Rules Engine</div>
+        <div class="col-tag">Rules Decide</div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-green">⚖️</div>
+        <div class="item-text">
+          <h3>Statutory Rule Catalog</h3>
+          <p>LMPC Rules, 2011 · G.S.R. 629(E) Amended</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-green">✓</div>
+        <div class="item-text">
+          <h3>Rule 6 Declarations</h3>
+          <p>MRP · Net Qty · Mfg Date · Consumer Care · Origin</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-green">📏</div>
+        <div class="item-text">
+          <h3>Rule 7 Font Height</h3>
+          <p>Table-I Net Qty Tiers · 1.0mm–6.0mm · 3:1 Ratio</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-green">⊘</div>
+        <div class="item-text">
+          <h3>Rule 26 Exemptions</h3>
+          <p>Sachets ≤10g · Institutional · Bulk ≥25kg</p>
+        </div>
+      </div>
+
+      <div class="item item-primary">
+        <div class="item-icon" style="background:#059669;color:#fff;">🏛️</div>
+        <div class="item-text">
+          <h3>Screening Decision Engine</h3>
+          <p>Deterministic Verdict · Rule Citation · Evidence Link</p>
+        </div>
+      </div>
+
+      <div class="badges">
+        <span class="badge b-pass">Pass</span>
+        <span class="badge b-fail">Fail</span>
+        <span class="badge b-unc">Uncertain</span>
+        <span class="badge b-na">N/A</span>
+        <span class="badge b-nm">Not Measurable</span>
+      </div>
+    </div>
+
+    <!-- ARROW 3→4 -->
+    <div class="arrow-sep">
+      <div class="arrow-label">Canonical Results</div>
+      <div class="arrow-icon">→</div>
+      <div class="arrow-label">Evidence</div>
+    </div>
+
+    <!-- ═══════ COLUMN 4: OUTPUT & STORAGE ═══════ -->
+    <div class="col col-4">
+      <div class="col-header">
+        <div class="col-number">4</div>
+        <div class="col-title">Output &<br>Intelligence</div>
+        <div class="col-tag">Evidence Explains</div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-orange">📄</div>
+        <div class="item-text">
+          <h3>PDF Screening Report</h3>
+          <p>Cryptographically Verified · Citation-Traceable</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-orange">📝</div>
+        <div class="item-text">
+          <h3>DOCX Screening Memo</h3>
+          <p>Editable OpenXML · Inspector Notice Template</p>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-icon ic-orange">📈</div>
+        <div class="item-text">
+          <h3>Manufacturer Trends</h3>
+          <p>Repeat-Offender · District Intelligence</p>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <div class="section-label">Persistence & Evidence</div>
+
+      <div class="item">
+        <div class="item-icon ic-teal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+        <div class="item-text">
+          <h3>PostgreSQL</h3>
+          <p>Scans · Rulesets · Results · RBAC</p>
+        </div>
+      </div>
+
+      <div class="mini-row">
+        <div class="mini-item">
+          <div class="item-icon ic-teal">☁️</div>
+          <div>
+            <h3>Object Store</h3>
+            <p>Evidence Images</p>
+          </div>
+        </div>
+        <div class="mini-item">
+          <div class="item-icon ic-teal">🔗</div>
+          <div>
+            <h3>SHA-256</h3>
+            <p>Tamper-Evident</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+
+  <!-- ====== FOOTER ====== -->
+  <div class="footer">
+    <div class="footer-left">Data Flow: Left → Right &nbsp;|&nbsp; docs/design/ &nbsp;|&nbsp; September 2026</div>
+    <div class="footer-right">Maanak — Team SIH26034 — Ministry of Consumer Affairs</div>
+  </div>
+
+</div><!-- /slide -->
+
+</body>
+</html>
