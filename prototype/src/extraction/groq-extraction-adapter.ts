@@ -15,7 +15,7 @@ export class GroqExtractionAdapter implements ExtractionAdapter {
   constructor(
     private readonly apiKey: string,
     private readonly loadImageBytes: (image: EvidenceImage) => Uint8Array | undefined,
-    private readonly model = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b',
+    private readonly model = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
     timeoutMs?: number,
   ) {
     if (!apiKey.trim()) throw new ExtractionError('Groq extraction provider is not configured');

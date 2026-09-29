@@ -3,7 +3,7 @@ import { EvidenceImage, Observation, ObservationStatus, createObservation } from
 import { ExtractionAdapter, ExtractionError } from './extraction-adapter';
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const FALLBACK_MODELS = Array.from(new Set([GEMINI_MODEL, 'gemini-3.6-flash']));
+const FALLBACK_MODELS = Array.from(new Set([GEMINI_MODEL, 'gemini-3.6-flash', 'gemini-2.5-flash']));
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
 const EXTRACTION_METHOD = 'GEMINI_VISION';
