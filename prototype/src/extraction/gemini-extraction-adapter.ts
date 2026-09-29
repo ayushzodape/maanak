@@ -3,7 +3,7 @@ import { EvidenceImage, Observation, ObservationStatus, createObservation } from
 import { ExtractionAdapter, ExtractionError } from './extraction-adapter';
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const FALLBACK_MODELS = Array.from(new Set([GEMINI_MODEL, 'gemini-3.6-flash', 'gemini-2.5-flash']));
+const FALLBACK_MODELS = Array.from(new Set([GEMINI_MODEL, 'gemini-3.6-flash', 'gemini-3.5-flash-lite']));
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
 const EXTRACTION_METHOD = 'GEMINI_VISION';
@@ -294,15 +294,21 @@ function parseBoundingBox(value: unknown): { x: number; y: number; width: number
   if ([x, y, width, height].some((part) => !Number.isFinite(part))) {
     throw new ExtractionError('Gemini extraction returned an invalid bounding box');
   }
-  // Clamp slight floating-point overflow/underflow within [-0.05, 1.05]
-  if (x >= -0.05 && x <= 1.05) x = Math.max(0, Math.min(1, x));
-  if (y >= -0.05 && y <= 1.05) y = Math.max(0, Math.min(1, y));
-  if (width > 0 && width <= 1.05) width = Math.max(0.001, Math.min(1 - x, width));
-  if (height > 0 && height <= 1.05) height = Math.max(0.001, Math.min(1 - y, height));
-
-  if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1.001 || y + height > 1.001) {
-    throw new ExtractionError('Gemini extraction returned an invalid bounding box');
+  // Handle 0-1000 coordinate normalization if model returns 1000-based boxes
+  if (x > 1.05 || y > 1.05 || width > 1.05 || height > 1.05) {
+    if (x <= 1000 && y <= 1000 && width <= 1000 && height <= 1000) {
+      x = x / 1000;
+      y = y / 1000;
+      width = width / 1000;
+      height = height / 1000;
+    }
   }
+  // Clamp coordinates within [0, 1] range
+  x = Math.max(0, Math.min(1, x));
+  y = Math.max(0, Math.min(1, y));
+  width = Math.max(0.001, Math.min(1 - x, Math.max(0.001, width)));
+  height = Math.max(0.001, Math.min(1 - y, Math.max(0.001, height)));
+
   return {
     x: Number(x.toFixed(4)),
     y: Number(y.toFixed(4)),

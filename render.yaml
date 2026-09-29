@@ -11,6 +11,12 @@ services:
         value: 20
       - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_VISION_MODEL
+        value: qwen/qwen3.8-27b
       - key: MAANAK_AUTH_USERNAME
         value: inspector
       - key: MAANAK_AUTH_PASSWORD
